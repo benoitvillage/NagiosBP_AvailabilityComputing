@@ -480,8 +480,8 @@ public class HostService {
 		
 		Collections.sort(this.listDateMinute);
 	
-		if(this.hostId == 147)
-			System.out.print("");
+		/*if(this.hostId == 147)
+			System.out.print("");*/
 		
 		
 		for(int i = shareVariables.getEpochBegin(); i <= shareVariables.getEpochEnd(); i += 60){

@@ -192,11 +192,15 @@ public class Validator {
 		
 		this.computeUnavailability();
 		
-		if(this.unavailability != 0) {
-			if(this.idApplication != -1)
-				this.myConnection.insertAppliMinute(minute, this.idApplication, this.category, "Global", this.source, this.unavailability, this.unavailabilityDown, this.effectiveDowntimeDuration);
-			else this.myConnection.insertHSMinute(minute, this.idHost, this.idService, this.source, this.unavailability, this.unavailabilityDown, this.downtimeDuration,this.effectiveDowntimeDuration, this.isDowntime);
+		if(this.idApplication == -1)
+			this.myConnection.insertHSMinute(minute, this.idHost, this.idService, this.source, this.unavailability, this.unavailabilityDown, this.downtimeDuration,this.effectiveDowntimeDuration, this.isDowntime);
 		
+		if(this.idApplication != -1 && (this.effectiveDowntimeDuration > 0 || this.unavailability != 0) )
+			this.myConnection.insertAppliMinute(minute, this.idApplication, this.category, "Global", this.source, this.unavailability, this.unavailabilityDown, this.effectiveDowntimeDuration);
+		
+		
+		if(this.unavailability != 0) {
+			
 			this.addListAvailabilityMinute(minute,this.availabilityMinute);
 			this.addListAvailabilityDownMinute(minute,this.availabilityDownMinute);
 			this.addListEpochEvent(minute);

@@ -141,8 +141,8 @@ public class ComputationPlan {
 				executeHSDowntimeLookup = this.myConnection.testHSDowntime(hostId,serviceId,hs);
 				
 				//warning
-				if(hostId == 2 && serviceId == 4)
-					System.out.print("");
+				/*if(hostId == 2 && serviceId == 4)
+					System.out.print("");*/
 					
 				int k = this.shareVariable.getEpochBegin();
 				//Compute for each minute
