@@ -191,12 +191,17 @@ public class Validator {
 	public void insertMinute(int minute) {
 		
 		this.computeUnavailability();
+		long isOutageTmp =  this.availabilityMinute & (long) 1;
+		int isOutage=0;
+		
+		if (isOutageTmp == (long) 1)
+			isOutage=1;
 		
 		if(this.idApplication == -1)
-			this.myConnection.insertHSMinute(minute, this.idHost, this.idService, this.source, this.unavailability, this.unavailabilityDown, this.downtimeDuration,this.effectiveDowntimeDuration, this.isDowntime);
+			this.myConnection.insertHSMinute(minute, this.idHost, this.idService, this.source, this.unavailability, this.unavailabilityDown, this.downtimeDuration,this.effectiveDowntimeDuration, this.isDowntime, isOutage);
 		
 		if(this.idApplication != -1 && (this.effectiveDowntimeDuration > 0 || this.unavailability != 0) )
-			this.myConnection.insertAppliMinute(minute, this.idApplication, this.category, "Global", this.source, this.unavailability, this.unavailabilityDown, this.effectiveDowntimeDuration);
+			this.myConnection.insertAppliMinute(minute, this.idApplication, this.category, "Global", this.source, this.unavailability, this.unavailabilityDown, this.effectiveDowntimeDuration, isOutage);
 		
 		
 		if(this.unavailability != 0) {

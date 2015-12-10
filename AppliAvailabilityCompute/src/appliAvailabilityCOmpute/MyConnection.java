@@ -459,18 +459,12 @@ public class MyConnection {
 				preparedStatement = connect_eor_dwh
 					      .prepareStatement("CREATE TABLE f_tmp_unavailability_day ENGINE=MEMORY as "
 					      		   + "SELECT a.*, DSE_NAME as FDU_SERVICE_NAME "
-					      		   + "FROM (SELECT FDU_HOST, FDU_SERVICE, FDU_ISDOWNTIME, max(FDU_EPOCH_MINUTE) as FDU_EPOCH_MINUTE "
+					      		   + "FROM (SELECT FDU_HOST, FDU_SERVICE, FDU_ISDOWNTIME, FDU_ISOUTAGE, FDU_EPOCH_MINUTE "
 					      		   		+  "FROM f_dtm_hs_unavailability_minute a "
-					      		   		+  "WHERE FDU_DATE between DATE_ADD(?,INTERVAL -1 DAY) and ? AND " 
-					      		   		+  "FDU_EPOCH_MINUTE between ? - 86400 AND ? "
-					      		   		+  "GROUP BY FDU_HOST, FDU_SERVICE) a "
-					      		   		+  "inner join d_service on dse_id = a.FDU_SERVICE "
-					      		   		+  "order by FDU_EPOCH_MINUTE desc");
+					      		   		+  "WHERE FDU_EPOCH_MINUTE = unix_timestamp(date_format(from_unixtime(? - 60),'%Y-%m-%d %H:%i:00'))) a "
+					      		   +  "INNER JOIN d_service on dse_id = a.FDU_SERVICE ");
 			
-				preparedStatement.setDate(1, (java.sql.Date) this.shareVariable.getDate());
-				preparedStatement.setDate(2, (java.sql.Date) this.shareVariable.getDate());
-				preparedStatement.setInt(3,  this.shareVariable.getEpochBegin());
-				preparedStatement.setInt(4,  this.shareVariable.getEpochBegin());
+				preparedStatement.setInt(1, this.shareVariable.getEpochBegin());
 				preparedStatement.executeUpdate();
 				
 				this.preparedStatement.close();
@@ -671,24 +665,20 @@ private void createTmpLogDownHSTableIdx() {
 		
 		// resultSet gets the result of the SQL query
 			preparedStatement = connect_eor_dwh
-				      .prepareStatement("select fdu_unavailability from f_tmp_unavailability_day "
-											 + "where fdu_host = ? and (fdu_service = ? or fdu_service_name = 'Hoststatus') "
-											 + "and fdu_epoch_minute = unix_timestamp(date_format(from_unixtime(? - 60),'%Y-%m-%d %H:%i:00')) "
-											 + "limit 1");
+				      .prepareStatement("select fdu_isOutage from f_tmp_unavailability_day "
+											 + "where fdu_host = ? and (fdu_service = ? or fdu_service_name = 'Hoststatus') ");
 			
-			int epochBegin = this.shareVariable.getEpochBegin();
 			preparedStatement.setInt(1, hostId);
 			preparedStatement.setInt(2, serviceId);
-			preparedStatement.setInt(3, epochBegin);
 			resultSet = preparedStatement.executeQuery();
 	
 	
 			while (resultSet.next()) {
 				nbRow ++; 
-				if(resultSet.getInt("fdu_unavailability") < 0 ) 
-				  previousState = false;
-				else if (resultSet.getInt("fdu_unavailability") >= 0)
-					previousState = true;
+				if(resultSet.getInt("fdu_isOutage") == 0 ) 
+				  previousState = true;
+				else if (resultSet.getInt("fdu_isOutage") == 1)
+					previousState = false;
 	
 			      }
 	
@@ -701,6 +691,7 @@ private void createTmpLogDownHSTableIdx() {
 		} catch (SQLException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
+			return previousState;
 		}
 		
 		return previousState;
@@ -963,14 +954,14 @@ private void createTmpLogDownHSTableIdx() {
 
 
 	public void insertHSMinute(int minute, int hostId, int serviceId, String source, int unavailability,
-			int unavailabilityDown, int downtimeDuration, int effectiveDowntime, boolean isDowntime) {
+			int unavailabilityDown, int downtimeDuration, int effectiveDowntime, boolean isDowntime, int isOutage) {
 		// TODO Auto-generated method stub
 		int chg_id = shareVariable.getChargementId();
 		
 		try {
 			preparedStatement = connect_eor_dwh.prepareStatement("insert into f_dtm_hs_unavailability_minute " +
-					"(fdu_epoch_minute,fdu_date, fdu_minute, fdu_source, fdu_host, fdu_service, fdu_unavailability, fdu_unavailabilityDown, fdu_downtimeDuration, fdu_downtimeEffectiveDuration, fdu_isDowntime, fdu_chg_id) " + 
-					" values (unix_timestamp(date_format(from_unixtime(?),'%Y-%m-%d %H:%i')),date_format(from_unixtime(?),'%Y-%m-%d'),date_format(from_unixtime(?),'%H')*60 + date_format(from_unixtime(?),'%i'),?,?,?,?,?,?,?,?,?)");
+					"(fdu_epoch_minute,fdu_date, fdu_minute, fdu_source, fdu_host, fdu_service, fdu_unavailability, fdu_unavailabilityDown, fdu_downtimeDuration, fdu_downtimeEffectiveDuration, fdu_isDowntime, fdu_chg_id, fdu_isOutage) " + 
+					" values (unix_timestamp(date_format(from_unixtime(?),'%Y-%m-%d %H:%i')),date_format(from_unixtime(?),'%Y-%m-%d'),date_format(from_unixtime(?),'%H')*60 + date_format(from_unixtime(?),'%i'),?,?,?,?,?,?,?,?,?,?)");
 			preparedStatement.setInt(1, minute);
 			preparedStatement.setInt(2, minute);
 			preparedStatement.setInt(3, minute);
@@ -984,6 +975,7 @@ private void createTmpLogDownHSTableIdx() {
 			preparedStatement.setInt(11, effectiveDowntime);
 			preparedStatement.setBoolean(12, isDowntime);
 			preparedStatement.setInt(13, chg_id);
+			preparedStatement.setInt(14, isOutage);
 			preparedStatement.executeUpdate();
 		
 			this.resultSet.close();
@@ -997,14 +989,14 @@ private void createTmpLogDownHSTableIdx() {
 	}
 	
 	public void insertAppliMinute(int minute, int applicationId, String category, String categoryAnalysis, String source,
-			int unavailability, int unavailabilityDown, int effectiveDowntime) {
+			int unavailability, int unavailabilityDown, int effectiveDowntime, int isOutage) {
 		// TODO Auto-generated method stub
 		int chg_id = shareVariable.getChargementId();
 		
 		try {
 			preparedStatement = connect_eor_dwh.prepareStatement("insert into f_dtm_application_unavailability_minute " +
-					"(fdb_epoch_minute,fdb_date, fdb_minute, fdb_source, fdb_application, fdb_category, fdb_category_analysis,fdb_unavailability, fdb_unavailability_down, fdb_downtimeEffectiveDuration, fdb_chg_id) " + 
-					" values (unix_timestamp(date_format(from_unixtime(?),'%Y-%m-%d %H:%i')),date_format(from_unixtime(?),'%Y-%m-%d'),date_format(from_unixtime(?),'%H')*60 + date_format(from_unixtime(?),'%i'),?,?,?,?,?,?,?,?)");
+					"(fdb_epoch_minute,fdb_date, fdb_minute, fdb_source, fdb_application, fdb_category, fdb_category_analysis,fdb_unavailability, fdb_unavailability_down, fdb_downtimeEffectiveDuration, fdb_chg_id, fdb_isOutage) " + 
+					" values (unix_timestamp(date_format(from_unixtime(?),'%Y-%m-%d %H:%i')),date_format(from_unixtime(?),'%Y-%m-%d'),date_format(from_unixtime(?),'%H')*60 + date_format(from_unixtime(?),'%i'),?,?,?,?,?,?,?,?,?)");
 			preparedStatement.setInt(1, minute);
 			preparedStatement.setInt(2, minute);
 			preparedStatement.setInt(3, minute);
@@ -1017,6 +1009,7 @@ private void createTmpLogDownHSTableIdx() {
 			preparedStatement.setInt(10, unavailabilityDown);
 			preparedStatement.setInt(11, effectiveDowntime);
 			preparedStatement.setInt(12, chg_id);
+			preparedStatement.setInt(13, isOutage);
 			preparedStatement.executeUpdate();
 		
 			this.resultSet.close();
