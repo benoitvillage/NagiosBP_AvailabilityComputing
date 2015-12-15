@@ -469,7 +469,7 @@ public class MyConnection {
 				
 				this.preparedStatement.close();
 				
-				this.createIndexTmpUnavailabilityTable();
+				//this.createIndexTmpUnavailabilityTable();
 				
 			} catch (SQLException e) {
 				// TODO Auto-generated catch block
@@ -478,20 +478,20 @@ public class MyConnection {
 		
 	}
 	
-	private void createIndexTmpUnavailabilityTable() {
+	/*private void createIndexTmpUnavailabilityTable() {
 		// TODO Auto-generated method stub
 		try {
 			
-			preparedStatement = connect_eor_dwh.prepareStatement("CREATE INDEX idx_fdu_date ON f_tmp_unavailability_day (FDU_HOST, FDU_SERVICE) USING BTREE;");
-			preparedStatement.executeUpdate();
+			//preparedStatement = connect_eor_dwh.prepareStatement("CREATE INDEX idx_fdu_date ON f_tmp_unavailability_day (FDU_HOST, FDU_SERVICE) USING BTREE;");
+			//preparedStatement.executeUpdate();
 			
-			this.preparedStatement.close();
+			//this.preparedStatement.close();
 			
 		} catch (SQLException e1) {
 			// TODO Auto-generated catch block
 			e1.printStackTrace();
 		}
-	}
+	}*/
 	
 	/**
 	 * In order to query a small amount of log data we create a temporary

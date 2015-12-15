@@ -200,7 +200,7 @@ public class Validator {
 		if(this.idApplication == -1)
 			this.myConnection.insertHSMinute(minute, this.idHost, this.idService, this.source, this.unavailability, this.unavailabilityDown, this.downtimeDuration,this.effectiveDowntimeDuration, this.isDowntime, isOutage);
 		
-		if(this.idApplication != -1 && (this.effectiveDowntimeDuration > 0 || this.unavailability != 0) )
+		if(this.idApplication != -1 && (this.downtimeDuration > 0 || this.unavailability != 0) )
 			this.myConnection.insertAppliMinute(minute, this.idApplication, this.category, "Global", this.source, this.unavailability, this.unavailabilityDown, this.effectiveDowntimeDuration, isOutage);
 		
 		
@@ -297,6 +297,14 @@ public class Validator {
 	private void computeORMinute(int minute) {
 
 		int validatorId;
+		
+		if(this.listSender.size() > 0)
+		{
+			validatorId=this.listSender.get(0);
+			this.availabilityMinute = this.vList.getHashMapValidator().get(validatorId).getAvailabilityMinute(minute);
+			this.availabilityDownMinute = this.vList.getHashMapValidator().get(validatorId).getAvailabilityDownMinute(minute);
+		}
+		
 		for(int i = 0; i < this.listSender.size(); i++)
 		{
 			validatorId = this.listSender.get(i);
