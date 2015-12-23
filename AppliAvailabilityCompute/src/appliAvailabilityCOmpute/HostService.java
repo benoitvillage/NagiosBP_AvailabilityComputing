@@ -27,6 +27,13 @@ public class HostService {
 	private ShareVariables shareVariables;
 	private ValidatorList vList;
 	private int validatorId;
+	/**
+	 * 0 state is OK
+	 * 1 outage not inherited from Hoststatus
+	 * 2 outage inherited from Hoststatus
+	 */
+	private int hostStatusStateFlag;
+	private int previousHostStatusStateFlag;
 	
 	public HostService(MyConnection myConnection, ShareVariables shareVariables, ValidatorList vList) {
 		this.myConnection = myConnection;
@@ -35,7 +42,8 @@ public class HostService {
 	}
 
 	public void hostServiceInit(int validatorId, String hostServiceSource, int hostId, int serviceId, boolean isDowntime,
-			boolean previousState, boolean previousDowntime, int availability, int state) {
+			boolean previousState, boolean previousDowntime, int availability, int state, int hostStatusStateFlag,
+			int previousHostStatusStateFlag) {
 		// TODO Auto-generated method stub
 		
 		this.source = hostServiceSource;
@@ -47,6 +55,8 @@ public class HostService {
 		this.availability = availability;
 		this.state = state;
 		this.validatorId = validatorId;
+		this.hostStatusStateFlag = hostStatusStateFlag;
+		this.previousHostStatusStateFlag = previousHostStatusStateFlag;
 	}
 
 	public void computeAvailabilityMinute(int minutes) {
@@ -70,6 +80,8 @@ public class HostService {
 				this.state = 1;
 				this.availabilityMinute = (long) 0;
 			}
+			
+			this.hostStatusStateFlag = this.previousHostStatusStateFlag;
 		}
 		//If result has one record, I analyse it
 		else if (resultSetSize == 1)
@@ -100,6 +112,7 @@ public class HostService {
 	private int getAvailabilityFromComplexLogs(ResultSet rs) {
 		// TODO Auto-generated method stub
 	
+		int hostStatusStateFlagTmp = -1;
 		int[] stateTab = new int [12];
 		stateTab = this.initializeStateTab(stateTab);
 		int availability = 0;
@@ -118,6 +131,12 @@ public class HostService {
 				/*if(rs.getInt("second_event") == 0 && rs.getInt("state") == 0) {
 					existFirstSecondOutage = true;
 				}*/
+				if(hostStatusStateFlagTmp != 1) {
+					if(rs.getInt("isHostStatus") == 0)
+						hostStatusStateFlagTmp = 0;
+					else hostStatusStateFlagTmp = 1;
+				}
+					
 				
 				this.availabilityMinute |= this.convertValueToMinuteLong(rs.getInt("fln_availability"));
 				
@@ -125,6 +144,10 @@ public class HostService {
 				listeSecondeEvent.add(rs.getInt("second_event"));
 			}
 			//System.out.println(Long.toBinaryString(this.availabilityMinute));
+			
+			if(hostStatusStateFlagTmp >= 0)
+			this.hostStatusStateFlag = hostStatusStateFlagTmp;
+			else hostStatusStateFlag = 0;
 			
 			this.state = this.getStateFromLastBit();
 			if(this.state == 0)
@@ -278,11 +301,14 @@ public class HostService {
 		try {
 			while (rs.next()) {
 				
+				this.hostStatusStateFlag = rs.getInt("isHostStatus");
+				
 				//case current state ok but previous state nok
 				if(rs.getInt("state") == 1 && !this.previousState) {
 					availability = rs.getInt("fln_availability");
 					this.state = 1;
 					this.availabilityMinute = this.convertValueToMinuteLong(availability);
+					
 				}
 				//case current state ok and previous state ok
 				else if(rs.getInt("state") == 1 && this.previousState){
@@ -432,6 +458,7 @@ public class HostService {
 			this.vList.getHashMapValidator().get(this.validatorId).computeDowntime();
 			this.vList.getHashMapValidator().get(this.validatorId).setDowntimeDuration(this.downtimeMinute);
 			this.vList.getHashMapValidator().get(this.validatorId).setIsDowntime(this.isDowntime);
+			this.vList.getHashMapValidator().get(this.validatorId).setHostStatusStateFlag(this.hostStatusStateFlag);
 			this.vList.getHashMapValidator().get(this.validatorId).insertMinute(minute);
 			this.vList.getHashMapValidator().get(this.validatorId).addListAvailabilityMinute(minute,this.availabilityMinute);
 			this.vList.getHashMapValidator().get(this.validatorId).addListAvailabilityDownMinute(minute,(this.availabilityMinute & ~(this.downtimeMinute)));
@@ -445,6 +472,7 @@ public class HostService {
 	public void saveCurrentContext() {
 		// TODO Auto-generated method stub
 		this.previousDowntime = this.isDowntime;
+		this.previousHostStatusStateFlag = this.hostStatusStateFlag;
 		if(this.state == 0)
 			this.previousState = false;
 		else this.previousState = true;

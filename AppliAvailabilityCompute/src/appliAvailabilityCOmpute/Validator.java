@@ -64,6 +64,14 @@ public class Validator {
 	private boolean isDowntime;
 
 	private boolean areEventsOnPeriod;
+
+	/**
+	 * Only for host service validator
+	 * 0 state is OK
+	 * 1 outage not inherited from Hoststatus
+	 * 2 outage inherited from Hoststatus
+	 */
+	private int hostStatusStateFlag = 0;
 	
 	
 	
@@ -198,7 +206,7 @@ public class Validator {
 			isOutage=1;
 		
 		if(this.idApplication == -1)
-			this.myConnection.insertHSMinute(minute, this.idHost, this.idService, this.source, this.unavailability, this.unavailabilityDown, this.downtimeDuration,this.effectiveDowntimeDuration, this.isDowntime, isOutage);
+			this.myConnection.insertHSMinute(minute, this.idHost, this.idService, this.source, this.unavailability, this.unavailabilityDown, this.downtimeDuration,this.effectiveDowntimeDuration, this.isDowntime, isOutage, this.hostStatusStateFlag);
 		
 		if(this.idApplication != -1 && (this.downtimeDuration > 0 || this.unavailability != 0) )
 			this.myConnection.insertAppliMinute(minute, this.idApplication, this.category, "Global", this.source, this.unavailability, this.unavailabilityDown, this.effectiveDowntimeDuration, isOutage);
@@ -503,6 +511,11 @@ public class Validator {
 	private boolean getAreEventsOnPeriod() {
 		// TODO Auto-generated method stub
 		return this.areEventsOnPeriod;
+	}
+
+	public void setHostStatusStateFlag(int hostStatusStateFlag) {
+		// TODO Auto-generated method stub
+		this.hostStatusStateFlag = hostStatusStateFlag;
 	}
 
 	

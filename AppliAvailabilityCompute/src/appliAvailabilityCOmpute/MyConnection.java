@@ -513,7 +513,8 @@ public class MyConnection {
 				      				  + "date_format(FLN_TIME,'%H') as FLN_HOUR, "
 				      				  + "date_format(FLN_TIME,'%i') as FLN_HMINUTE, "
 				      				  + "unix_timestamp(date_format(FROM_UNIXTIME(FLN_UNIX_TIME),'%Y-%m-%d %H:%i')) as FLN_DATE_MINUTE, "
-				      				  + "dse_name as fln_service_name "
+				      				  + "dse_name as fln_service_name, "
+				      				  + "CASE WHEN dse_name = 'Hoststatus' then 1 else 0 end as isHostStatus "
 				      				  + "FROM f_dwh_logs_nagios a "
 				      				  + "inner join d_service on dse_id = fln_service "
 				      				      + "WHERE FLN_DATE between DATE_ADD(?,INTERVAL -1 DAY) and ? and "
@@ -655,17 +656,24 @@ private void createTmpLogDownHSTableIdx() {
 		
 	    
 	}
-
-		public boolean getHSPreviousState(int hostId, int serviceId) {
+		/**
+		 * 
+		 * @param hostId
+		 * @param serviceId
+		 * @return O if previousState is not outage
+		 * 		   1 if previousState does not inherit from hostStatus
+		 * 		   2 if previousState inherit from hostStatus		
+		 * 		 */
+		public int getHSPreviousState(int hostId, int serviceId) {
 		
-		boolean previousState = true;
+		int previousState = 0;
 		int nbRow = 0;
 		
 		try {
 		
 		// resultSet gets the result of the SQL query
 			preparedStatement = connect_eor_dwh
-				      .prepareStatement("select fdu_isOutage from f_tmp_unavailability_day "
+				      .prepareStatement("select fdu_isOutage, fdu_isHoststatusOutage from f_tmp_unavailability_day "
 											 + "where fdu_host = ? and (fdu_service = ? or fdu_service_name = 'Hoststatus') ");
 			
 			preparedStatement.setInt(1, hostId);
@@ -676,14 +684,18 @@ private void createTmpLogDownHSTableIdx() {
 			while (resultSet.next()) {
 				nbRow ++; 
 				if(resultSet.getInt("fdu_isOutage") == 0 ) 
-				  previousState = true;
-				else if (resultSet.getInt("fdu_isOutage") == 1)
-					previousState = false;
+				  previousState = 0;
+				else if (resultSet.getInt("fdu_isOutage") == 1) {
+						if(resultSet.getInt("fdu_isHoststatusOutage") == 0)
+							previousState = 1;
+						else if (resultSet.getInt("fdu_isHoststatusOutage") == 1)
+							previousState = 2;
+				}
 	
 			      }
 	
 			if(nbRow == 0)
-				previousState = true;
+				previousState = 0;
 			
 			this.resultSet.close();
 			this.preparedStatement.close();
@@ -889,7 +901,7 @@ private void createTmpLogDownHSTableIdx() {
 		
 		// resultSet gets the result of the SQL query
 			preparedStatement = connect_eor_dwh
-				      .prepareStatement("select distinct fln_availability, fln_state_unif as state, "
+				      .prepareStatement("select distinct isHostStatus, fln_availability, fln_state_unif as state, "
 						    		  		 + "FLN_UNIX_TIME - FLN_DATE_MINUTE as second_event "
 				      						 + "from f_tmp_log_hs_day "
 											 + "where fln_date_minute = ? "
@@ -954,14 +966,14 @@ private void createTmpLogDownHSTableIdx() {
 
 
 	public void insertHSMinute(int minute, int hostId, int serviceId, String source, int unavailability,
-			int unavailabilityDown, int downtimeDuration, int effectiveDowntime, boolean isDowntime, int isOutage) {
+			int unavailabilityDown, int downtimeDuration, int effectiveDowntime, boolean isDowntime, int isOutage, int hostStatusStateFlag) {
 		// TODO Auto-generated method stub
 		int chg_id = shareVariable.getChargementId();
 		
 		try {
 			preparedStatement = connect_eor_dwh.prepareStatement("insert into f_dtm_hs_unavailability_minute " +
-					"(fdu_epoch_minute,fdu_date, fdu_minute, fdu_source, fdu_host, fdu_service, fdu_unavailability, fdu_unavailabilityDown, fdu_downtimeDuration, fdu_downtimeEffectiveDuration, fdu_isDowntime, fdu_chg_id, fdu_isOutage) " + 
-					" values (unix_timestamp(date_format(from_unixtime(?),'%Y-%m-%d %H:%i')),date_format(from_unixtime(?),'%Y-%m-%d'),date_format(from_unixtime(?),'%H')*60 + date_format(from_unixtime(?),'%i'),?,?,?,?,?,?,?,?,?,?)");
+					"(fdu_epoch_minute,fdu_date, fdu_minute, fdu_source, fdu_host, fdu_service, fdu_unavailability, fdu_unavailabilityDown, fdu_downtimeDuration, fdu_downtimeEffectiveDuration, fdu_isDowntime, fdu_chg_id, fdu_isOutage, fdu_isHoststatusOutage) " + 
+					" values (unix_timestamp(date_format(from_unixtime(?),'%Y-%m-%d %H:%i')),date_format(from_unixtime(?),'%Y-%m-%d'),date_format(from_unixtime(?),'%H')*60 + date_format(from_unixtime(?),'%i'),?,?,?,?,?,?,?,?,?,?,?)");
 			preparedStatement.setInt(1, minute);
 			preparedStatement.setInt(2, minute);
 			preparedStatement.setInt(3, minute);
@@ -976,6 +988,7 @@ private void createTmpLogDownHSTableIdx() {
 			preparedStatement.setBoolean(12, isDowntime);
 			preparedStatement.setInt(13, chg_id);
 			preparedStatement.setInt(14, isOutage);
+			preparedStatement.setInt(15, hostStatusStateFlag);
 			preparedStatement.executeUpdate();
 		
 			this.resultSet.close();

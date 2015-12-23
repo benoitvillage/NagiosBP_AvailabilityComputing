@@ -118,6 +118,11 @@ public class ComputationPlan {
 		boolean isDowntime;
 		boolean previousState;
 		boolean previousDowntime;
+		int hostStatusStateFlag;
+		//0 if previousState is not Outage
+		//1 if previousState outage does not inherit from service
+		//2 if previousState outage inherit from Hoststatus
+		int previousHoststatusStateFlag;
 		int availability;
 		int state =  0;
 		boolean executeHSStateLookup;
@@ -130,8 +135,18 @@ public class ComputationPlan {
 				hostServiceSource = this.vList.getHashMapValidator().get(validatorId).getSource();
 				hostId = this.vList.getHashMapValidator().get(validatorId).getIdHost();
 				serviceId = this.vList.getHashMapValidator().get(validatorId).getIdService();
-				isDowntime = false;				
-				previousState = this.myConnection.getHSPreviousState(hostId,serviceId);
+				isDowntime = false;	
+				hostStatusStateFlag = 0;
+				previousHoststatusStateFlag = this.myConnection.getHSPreviousState(hostId,serviceId);
+				
+				if(previousHoststatusStateFlag == 0) {
+					previousState = true;
+				}
+				else {
+					previousState = false;
+					previousHoststatusStateFlag = 1;
+				}
+				
 				previousDowntime = this.myConnection.getHSPreviousDowntime(hostId,serviceId);
 				availability = 0;
 				state = 1;
@@ -151,7 +166,7 @@ public class ComputationPlan {
 					
 					this.vList.getHashMapValidator().get(validatorId).setAreEventsOnPeriod(true);
 					//initialisation de l'objet hs
-					hs.hostServiceInit(validatorId,hostServiceSource,hostId,serviceId,isDowntime,previousState,previousDowntime, availability, state);
+					hs.hostServiceInit(validatorId,hostServiceSource,hostId,serviceId,isDowntime,previousState,previousDowntime, availability, state, hostStatusStateFlag, previousHoststatusStateFlag);
 					
 					//Créer table log temporaire 1j /1 host service
 					this.myConnection.createTmpLogHSTable(hostId,serviceId);
@@ -170,7 +185,7 @@ public class ComputationPlan {
 					//If there are not Outage event for this HS, there will be no computation on linked application
 					this.vList.getHashMapValidator().get(validatorId).setAreEventsOnPeriod(false);
 					//initialisation de l'objet hs
-					hs.hostServiceInit(validatorId,hostServiceSource,hostId,serviceId,isDowntime,previousState,previousDowntime, availability, state);
+					hs.hostServiceInit(validatorId,hostServiceSource,hostId,serviceId,isDowntime,previousState,previousDowntime, availability, state, hostStatusStateFlag, previousHoststatusStateFlag);
 					
 					//Créer table log downtime temporaire 1j /1 host service
 					this.myConnection.createTmpLogDowntimeHSTable(hostId,serviceId);
@@ -181,7 +196,7 @@ public class ComputationPlan {
 				{
 					this.vList.getHashMapValidator().get(validatorId).setAreEventsOnPeriod(true);
 					//initialisation de l'objet hs
-					hs.hostServiceInit(validatorId,hostServiceSource,hostId,serviceId,isDowntime,previousState,previousDowntime, availability, state);
+					hs.hostServiceInit(validatorId,hostServiceSource,hostId,serviceId,isDowntime,previousState,previousDowntime, availability, state, hostStatusStateFlag, previousHoststatusStateFlag);
 					
 					//Créer table log temporaire 1j /1 host service
 					this.myConnection.createTmpLogHSTable(hostId,serviceId);
