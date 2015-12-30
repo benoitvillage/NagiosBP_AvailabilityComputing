@@ -459,7 +459,7 @@ public class MyConnection {
 				preparedStatement = connect_eor_dwh
 					      .prepareStatement("CREATE TABLE f_tmp_unavailability_day ENGINE=MEMORY as "
 					      		   + "SELECT a.*, DSE_NAME as FDU_SERVICE_NAME "
-					      		   + "FROM (SELECT FDU_HOST, FDU_SERVICE, FDU_ISDOWNTIME, FDU_ISOUTAGE, FDU_EPOCH_MINUTE "
+					      		   + "FROM (SELECT FDU_HOST, FDU_SERVICE, FDU_ISDOWNTIME, FDU_ISOUTAGE, FDU_EPOCH_MINUTE, FDU_ISHOSTSTATUSOUTAGE "
 					      		   		+  "FROM f_dtm_hs_unavailability_minute a "
 					      		   		+  "WHERE FDU_EPOCH_MINUTE = unix_timestamp(date_format(from_unixtime(? - 60),'%Y-%m-%d %H:%i:00'))) a "
 					      		   +  "INNER JOIN d_service on dse_id = a.FDU_SERVICE ");
