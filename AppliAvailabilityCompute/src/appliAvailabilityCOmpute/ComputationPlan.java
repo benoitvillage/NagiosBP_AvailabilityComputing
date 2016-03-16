@@ -137,17 +137,24 @@ public class ComputationPlan {
 				serviceId = this.vList.getHashMapValidator().get(validatorId).getIdService();
 				isDowntime = false;	
 				hostStatusStateFlag = 0;
-				previousHoststatusStateFlag = this.myConnection.getHSPreviousState(hostId,serviceId);
 				
+				previousHoststatusStateFlag = this.myConnection.getHSPreviousState(hostId,serviceId);
+				if(previousHoststatusStateFlag != 0)
+					this.myConnection.getHSPreviousInternOutageEventNum(hostId, serviceId);
+				else this.shareVariable.setInternOutageEventId(this.shareVariable.getEpochBegin());
 				if(previousHoststatusStateFlag == 0) {
 					previousState = true;
 				}
 				else {
 					previousState = false;
-					previousHoststatusStateFlag = 1;
+					if(previousHoststatusStateFlag == 2)
+						previousHoststatusStateFlag = 1;
 				}
 				
 				previousDowntime = this.myConnection.getHSPreviousDowntime(hostId,serviceId);
+				if(previousDowntime)
+					this.myConnection.getHSPreviousInternDowntimeEnventNum(hostId, serviceId);
+				else this.shareVariable.setInternDowntimeEventId(this.shareVariable.getEpochEnd());
 				availability = 0;
 				state = 1;
 				

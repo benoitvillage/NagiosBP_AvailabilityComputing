@@ -459,7 +459,7 @@ public class MyConnection {
 				preparedStatement = connect_eor_dwh
 					      .prepareStatement("CREATE TABLE f_tmp_unavailability_day ENGINE=MEMORY as "
 					      		   + "SELECT a.*, DSE_NAME as FDU_SERVICE_NAME "
-					      		   + "FROM (SELECT FDU_HOST, FDU_SERVICE, FDU_ISDOWNTIME, FDU_ISOUTAGE, FDU_EPOCH_MINUTE, FDU_ISHOSTSTATUSOUTAGE "
+					      		   + "FROM (SELECT FDU_HOST, FDU_SERVICE, FDU_ISDOWNTIME, FDU_ISOUTAGE, FDU_EPOCH_MINUTE, FDU_ISHOSTSTATUSOUTAGE, fdu_OutageInternEventNum, fdu_DowntimeInternEventNum "
 					      		   		+  "FROM f_dtm_hs_unavailability_minute a "
 					      		   		+  "WHERE FDU_EPOCH_MINUTE = unix_timestamp(date_format(from_unixtime(? - 60),'%Y-%m-%d %H:%i:00'))) a "
 					      		   +  "INNER JOIN d_service on dse_id = a.FDU_SERVICE ");
@@ -707,7 +707,60 @@ private void createTmpLogDownHSTableIdx() {
 		}
 		
 		return previousState;
-	}				
+	}
+	
+		/**
+		 * 
+		 * @param hostId
+		 * @param serviceId
+		 * @return previousInternOutageEventNum	
+		 * 		 */
+		public void getHSPreviousInternOutageEventNum(int hostId, int serviceId) {
+		
+		int previousInternOutageEventNum = 0;
+
+		int counter = 0;
+		
+		try {
+		
+		// resultSet gets the result of the SQL query
+			preparedStatement = connect_eor_dwh
+				      .prepareStatement("select fdu_service, fdu_OutageInternEventNum from f_tmp_unavailability_day "
+											 + "where fdu_host = ? and (fdu_service = ? or fdu_service_name = 'Hoststatus') and fdu_OutageInternEventNum >= 0");
+			
+			preparedStatement.setInt(1, hostId);
+			preparedStatement.setInt(2, serviceId);
+			resultSet = preparedStatement.executeQuery();
+	
+	
+			while (resultSet.next()) {
+				
+				if(serviceId == resultSet.getInt("fdu_service"))
+					previousInternOutageEventNum = resultSet.getInt("fdu_OutageInternEventNum");
+				else if(serviceId != resultSet.getInt("fdu_service") && previousInternOutageEventNum == 0 )
+					previousInternOutageEventNum = resultSet.getInt("fdu_OutageInternEventNum");
+				counter ++;
+			
+			}
+			
+			
+			
+			if(counter == 0)
+				this.shareVariable.setInternOutageEventId(this.shareVariable.getEpochBegin());
+			else
+				this.shareVariable.setInternOutageEventId(previousInternOutageEventNum);
+			
+			this.resultSet.close();
+			this.preparedStatement.close();
+			
+		} catch (SQLException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+
+		}
+		
+
+	}	
 		
 	public boolean getHSPreviousDowntime(int hostId, int serviceId) {
 		// TODO Auto-generated method stub
@@ -742,6 +795,44 @@ private void createTmpLogDownHSTableIdx() {
 		}
 		
 		return previousDowntime;
+	}
+	
+	public void getHSPreviousInternDowntimeEnventNum(int hostId, int serviceId) {
+		// TODO Auto-generated method stub
+		int previousInternDowntimeEnventNum = this.shareVariable.getInternDowntimeEventId();
+		int counter = 0;
+		try {
+		
+		// resultSet gets the result of the SQL query
+			preparedStatement = connect_eor_dwh
+				      .prepareStatement("select fdu_OutageInternEventNum from f_tmp_unavailability_day "
+											 + "where fdu_host = ? and fdu_service = ? and fdu_OutageInternEventNum >= 0 "
+											 + "limit 1");
+			
+
+			preparedStatement.setInt(1, hostId);
+			preparedStatement.setInt(2, serviceId);
+			resultSet = preparedStatement.executeQuery();
+
+
+			while (resultSet.next()) {
+				counter++;
+				previousInternDowntimeEnventNum = resultSet.getInt("fdu_OutageInternEventNum");
+				this.shareVariable.setInternDowntimeEventId(previousInternDowntimeEnventNum);
+			      }
+			
+			if (counter == 0)
+				this.shareVariable.setInternDowntimeEventId(this.shareVariable.getEpochBegin());
+			
+			this.resultSet.close();
+			this.preparedStatement.close();
+
+		} catch (SQLException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+
+		}
+
 	}
 	
 	
@@ -966,14 +1057,15 @@ private void createTmpLogDownHSTableIdx() {
 
 
 	public void insertHSMinute(int minute, int hostId, int serviceId, String source, int unavailability,
-			int unavailabilityDown, int downtimeDuration, int effectiveDowntime, boolean isDowntime, int isOutage, int hostStatusStateFlag) {
+			int unavailabilityDown, int downtimeDuration, int effectiveDowntime, boolean isDowntime, int isOutage, int hostStatusStateFlag,
+			int internOutageEventId, int internDowntimeEventId) {
 		// TODO Auto-generated method stub
 		int chg_id = shareVariable.getChargementId();
 		
 		try {
 			preparedStatement = connect_eor_dwh.prepareStatement("insert into f_dtm_hs_unavailability_minute " +
-					"(fdu_epoch_minute,fdu_date, fdu_minute, fdu_source, fdu_host, fdu_service, fdu_unavailability, fdu_unavailabilityDown, fdu_downtimeDuration, fdu_downtimeEffectiveDuration, fdu_isDowntime, fdu_chg_id, fdu_isOutage, fdu_isHoststatusOutage) " + 
-					" values (unix_timestamp(date_format(from_unixtime(?),'%Y-%m-%d %H:%i')),date_format(from_unixtime(?),'%Y-%m-%d'),date_format(from_unixtime(?),'%H')*60 + date_format(from_unixtime(?),'%i'),?,?,?,?,?,?,?,?,?,?,?)");
+					"(fdu_epoch_minute,fdu_date, fdu_minute, fdu_source, fdu_host, fdu_service, fdu_unavailability, fdu_unavailabilityDown, fdu_downtimeDuration, fdu_downtimeEffectiveDuration, fdu_isDowntime, fdu_chg_id, fdu_isOutage, fdu_isHoststatusOutage, fdu_OutageInternEventNum, fdu_DowntimeInternEventNum) " + 
+					" values (unix_timestamp(date_format(from_unixtime(?),'%Y-%m-%d %H:%i')),date_format(from_unixtime(?),'%Y-%m-%d'),date_format(from_unixtime(?),'%H')*60 + date_format(from_unixtime(?),'%i'),?,?,?,?,?,?,?,?,?,?,?,?,?)");
 			preparedStatement.setInt(1, minute);
 			preparedStatement.setInt(2, minute);
 			preparedStatement.setInt(3, minute);
@@ -989,6 +1081,8 @@ private void createTmpLogDownHSTableIdx() {
 			preparedStatement.setInt(13, chg_id);
 			preparedStatement.setInt(14, isOutage);
 			preparedStatement.setInt(15, hostStatusStateFlag);
+			preparedStatement.setInt(16, internOutageEventId);
+			preparedStatement.setInt(17, internDowntimeEventId);
 			preparedStatement.executeUpdate();
 		
 			this.resultSet.close();

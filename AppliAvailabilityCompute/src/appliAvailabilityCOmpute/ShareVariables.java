@@ -17,8 +17,28 @@ public class ShareVariables {
 	public int chargementId;
 	public int validatorCounter = 0;
 	public long maskMax = 0x0FFFFFFFFFFFFFFFL;
+	public int internOutageEventId = 0;
+	public int internDowntimeEventId = 0;
 	
 
+	public int getInternDowntimeEventId() {
+		return this.internDowntimeEventId;
+	}
+	
+	public void setInternDowntimeEventId(int internDowntimeEventId) {
+		this.internDowntimeEventId = internDowntimeEventId;
+	}
+	
+	public int getInternOutageEventId() {
+		return this.internOutageEventId;
+	}
+	
+	public void setInternOutageEventId(int internOutageEventId) {
+		this.internOutageEventId = internOutageEventId;
+	}
+
+	
+	
 	public int getValidatorCounter() {
 		this.validatorCounter++;
 		return validatorCounter;
@@ -45,12 +65,6 @@ public class ShareVariables {
 			System.out.println(this.user);
 			System.out.println(this.password);
 			
-			try {
-				Thread.sleep(10000);
-			} catch (InterruptedException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}
 		
 	    } catch (IOException e) {
 			// TODO Auto-generated catch block

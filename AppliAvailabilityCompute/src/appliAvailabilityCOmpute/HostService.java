@@ -447,6 +447,22 @@ public class HostService {
 			previousStateInt = 1;
 		else previousStateInt=0;
 		
+		int previousDowntimeInt;
+		if(this.previousDowntime)
+			previousDowntimeInt = 1;
+		else previousDowntimeInt=0;
+
+		if(previousStateInt == 1 && this.state == 0)
+		{
+			this.shareVariables.setInternOutageEventId(minute);
+		}
+		
+		if(previousDowntimeInt == 0 && this.downtimeState)
+		{
+			this.shareVariables.setInternDowntimeEventId(minute);
+		}
+		
+		
 		if(this.availability != 0 || (this.isDowntime) 
 			|| this.state != previousStateInt){
 			

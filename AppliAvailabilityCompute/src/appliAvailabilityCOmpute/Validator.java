@@ -93,6 +93,7 @@ public class Validator {
 	//Constructor for host service validator
 	public Validator(int idHost, int idService, String source, ShareVariables shareVariable, ValidatorList vList, MyConnection myConnection)
 	{
+		this.shareVariables = shareVariable;
 		this.idHost = idHost;
 		this.idService = idService;
 		this.source = source;
@@ -205,12 +206,19 @@ public class Validator {
 		if (isOutageTmp == (long) 1)
 			isOutage=1;
 		
+		int internOutageEventId = this.shareVariables.getInternOutageEventId();
+		int internDowntimeEventId = this.shareVariables.getInternDowntimeEventId();
+		
 		if(this.idApplication == -1)
-			this.myConnection.insertHSMinute(minute, this.idHost, this.idService, this.source, this.unavailability, this.unavailabilityDown, this.downtimeDuration,this.effectiveDowntimeDuration, this.isDowntime, isOutage, this.hostStatusStateFlag);
+			this.myConnection.insertHSMinute(minute, this.idHost, this.idService, this.source, this.unavailability, this.unavailabilityDown, this.downtimeDuration,this.effectiveDowntimeDuration, this.isDowntime, isOutage, this.hostStatusStateFlag, internOutageEventId, internDowntimeEventId);
 		
-		if(this.idApplication != -1 && (this.downtimeDuration > 0 || this.unavailability != 0) )
+		if(this.idApplication != -1 && (this.downtimeDuration > 0 || this.unavailability != 0) ) {
 			this.myConnection.insertAppliMinute(minute, this.idApplication, this.category, "Global", this.source, this.unavailability, this.unavailabilityDown, this.effectiveDowntimeDuration, isOutage);
-		
+			
+			/*if(isOutage == 0)
+			this.shareVariables.setInternOutageEventId();*/
+		}
+			
 		
 		if(this.unavailability != 0) {
 			
