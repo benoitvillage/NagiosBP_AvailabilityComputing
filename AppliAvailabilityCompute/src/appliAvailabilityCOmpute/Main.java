@@ -50,6 +50,7 @@ public class Main {
 			HostServiceList myHSList = new HostServiceList(myConnection, shareVariable);
 			
 		    ComputationPlan cPlan = new ComputationPlan(vList, myHSList,myConnection, shareVariable);
+		    //cPlan.displayComputationPlan(vList);
 		    
 		    myConnection.dropDayLogTable();
 			myConnection.dropDayDowntimeLogTable();
@@ -68,7 +69,7 @@ public class Main {
 			myConnection.createDayDowntimeLogTable();
 			
 			System.out.println("Temp log downtime table created");
-		    cPlan.displayComputationPlan(vList);
+		    
 		    
 		    
 			cPlan.executeComputation();

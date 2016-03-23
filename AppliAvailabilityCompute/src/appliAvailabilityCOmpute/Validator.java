@@ -72,6 +72,14 @@ public class Validator {
 	 * 2 outage inherited from Hoststatus
 	 */
 	private int hostStatusStateFlag = 0;
+
+	/**
+	 * Only for host service validator
+	 * This attribute contains host service last minutes downtime bit
+	 * before hoststatus downtime minute application. This attribute
+	 * allows to stop downtime when inherited from hoststatus.
+	 */
+	private long previousHostServiceDowntimeBit;
 	
 	
 	
@@ -210,7 +218,7 @@ public class Validator {
 		int internDowntimeEventId = this.shareVariables.getInternDowntimeEventId();
 		
 		if(this.idApplication == -1)
-			this.myConnection.insertHSMinute(minute, this.idHost, this.idService, this.source, this.unavailability, this.unavailabilityDown, this.downtimeDuration,this.effectiveDowntimeDuration, this.isDowntime, isOutage, this.hostStatusStateFlag, internOutageEventId, internDowntimeEventId);
+			this.myConnection.insertHSMinute(minute, this.idHost, this.idService, this.source, this.unavailability, this.unavailabilityDown, this.downtimeDuration,this.effectiveDowntimeDuration, this.isDowntime, isOutage, this.hostStatusStateFlag, internOutageEventId, internDowntimeEventId, this.previousHostServiceDowntimeBit);
 		
 		if(this.idApplication != -1 && (this.downtimeDuration > 0 || this.unavailability != 0) ) {
 			this.myConnection.insertAppliMinute(minute, this.idApplication, this.category, "Global", this.source, this.unavailability, this.unavailabilityDown, this.effectiveDowntimeDuration, isOutage);
@@ -336,8 +344,6 @@ public class Validator {
 		int nbTrueSecondeDown;
 
 		long availabilityMinute;
-		long intermediaire1;
-		long intermediaire2;
 		long availabilityMinuteDown;
 		
 		for(int i=59; i >=0; i--)
@@ -345,11 +351,19 @@ public class Validator {
 			nbTrueSeconde=0;
 			nbTrueSecondeDown=0;
 			
+			/*if(minute==1421017860 && i==53)
+				nbTrueSeconde=0;*/
+			
 			for(int j=0; j<this.listSender.size();j++)
 			{
 				validatorId = this.listSender.get(j);
 				availabilityMinute = this.vList.getHashMapValidator().get(validatorId).getAvailabilityMinute(minute);
-				availabilityMinuteDown = this.vList.getHashMapValidator().get(validatorId).getAvailabilityMinute(minute);
+				availabilityMinuteDown = this.vList.getHashMapValidator().get(validatorId).getAvailabilityDownMinute(minute);
+				
+				/*if(minute==1421017860){
+					//System.out.println(Long.toBinaryString(availabilityMinute));
+					System.out.println(Long.toBinaryString(availabilityMinuteDown));
+				}*/
 				
 				if(getBitPosition(availabilityMinute,i) == 0)
 					nbTrueSeconde++;
@@ -360,15 +374,23 @@ public class Validator {
 			
 			if(nbTrueSeconde < this.min)
 			{
-				this.availabilityMinute |= 1<<i;
+				this.availabilityMinute |= (long)1 <<i;
+				/*if(minute==1421017860){
+					System.out.println(Long.toBinaryString(this.availabilityMinute));
+				}*/
 			}
 			if(nbTrueSecondeDown < this.min)
 			{
-				this.availabilityDownMinute |= 1<<i;
+				this.availabilityDownMinute |= (long) 1<<i;
+				/*if(minute==1421017860){
+					System.out.println(Long.toBinaryString(this.availabilityDownMinute));
+				}*/
 			}
 		}
 		
-		
+		/*if(minute==1421017860){
+			System.out.println("Fin du calcul min parmi pour la minute 1421017860");
+		}*/
 	}
 	
 	public Long getBitPosition(Long value, int position)
@@ -394,7 +416,7 @@ public class Validator {
 		{
 			result = this.listAvailabilityMinute.get(minute);
 		}
-		else result = 0;
+		else result = (long) 0;
 		
 		
 		return result;
@@ -524,6 +546,16 @@ public class Validator {
 	public void setHostStatusStateFlag(int hostStatusStateFlag) {
 		// TODO Auto-generated method stub
 		this.hostStatusStateFlag = hostStatusStateFlag;
+	}
+	
+	public ArrayList<Integer> getListSender() {
+		// TODO Auto-generated method stub
+		return this.listSender;
+	}
+
+	public void setPreviousHostServiceDowntimeBit(long previousHostServiceDowntimeBit) {
+		// TODO Auto-generated method stub
+		this.previousHostServiceDowntimeBit = previousHostServiceDowntimeBit;
 	}
 
 	

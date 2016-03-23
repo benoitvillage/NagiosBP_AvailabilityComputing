@@ -35,6 +35,13 @@ public class HostService {
 	private int hostStatusStateFlag;
 	private int previousHostStatusStateFlag;
 	
+	/**
+	 * This attribute contains host service last minutes downtime bit
+	 * before hoststatus downtime minute application. This attribute
+	 * allows to stop downtime when inherited from hoststatus.
+	 */
+	private long previousHostServiceDowntimeBit;
+	
 	public HostService(MyConnection myConnection, ShareVariables shareVariables, ValidatorList vList) {
 		this.myConnection = myConnection;
 		this.shareVariables = shareVariables;
@@ -43,7 +50,7 @@ public class HostService {
 
 	public void hostServiceInit(int validatorId, String hostServiceSource, int hostId, int serviceId, boolean isDowntime,
 			boolean previousState, boolean previousDowntime, int availability, int state, int hostStatusStateFlag,
-			int previousHostStatusStateFlag) {
+			int previousHostStatusStateFlag, int previousHostServiceDowntimeBit) {
 		// TODO Auto-generated method stub
 		
 		this.source = hostServiceSource;
@@ -57,19 +64,32 @@ public class HostService {
 		this.validatorId = validatorId;
 		this.hostStatusStateFlag = hostStatusStateFlag;
 		this.previousHostStatusStateFlag = previousHostStatusStateFlag;
+		this.previousHostServiceDowntimeBit = previousHostServiceDowntimeBit;
 	}
 
 	public void computeAvailabilityMinute(int minutes) {
 		// TODO Auto-generated method stub
 		
-		//If resultset is empty a take into account the previous state
-			
+		//If resultset is empty, we take into account the previous state		
 		ResultSet rs = this.myConnection.getHostServiceLogMinute(minutes);
 		int resultSetSize = this.isResultSetSize(rs);
+		
+		//Warning
+		if(minutes == 1421276460 && this.hostId == 5 && this.serviceId == 6){
+			System.out.println("Voici le nombre d'event sur la minute 1421276460 pour hostservice 5 6 : " + resultSetSize);
+			/*try {
+				Thread.sleep(5000);
+			} catch (InterruptedException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}*/
+		}
 		
 		
 		if(resultSetSize == 0)	
 		{
+			this.availabilityMinute = 0;
+			
 			if(!previousState) {
 				this.availability = -60;
 				this.state = 0;
@@ -82,6 +102,26 @@ public class HostService {
 			}
 			
 			this.hostStatusStateFlag = this.previousHostStatusStateFlag;
+			
+			/**BEGIN Block added 2016-03-18 by Benoit Village*/
+			
+			int tmpUnavailability = this.countNbBit(this.availabilityMinute);
+			//Take into account Hoststatus state in service compute
+			this.computeAvailabilityWithHostStatus(minutes);
+			int unavailability = this.countNbBit(this.availabilityMinute);
+			if(this.getStateFromLastBit() == 0){
+				this.availability = 0 - unavailability;
+				this.state = 0;
+			}
+			else {
+				this.availability = unavailability;
+				this.state = 1;
+			}
+			
+			if(tmpUnavailability != unavailability)
+				this.hostStatusStateFlag = 1;
+			
+			/**END Block added 2016-03-18 by Benoit Village*/
 		}
 		//If result has one record, I analyse it
 		else if (resultSetSize == 1)
@@ -91,6 +131,21 @@ public class HostService {
 			/*System.out.println("Nous avons un résultat pour le host " + this.hostId + " avec"
 					+ " une availability de " + this.availability + " state : " + this.state);
 			 */
+			
+			/**BEGIN Block added 2016-03-18 by Benoit Village*/
+			
+			int tmpUnavailability = this.countNbBit(this.availabilityMinute);
+			//Take into account Hoststatus state in service compute
+			this.computeAvailabilityWithHostStatus(minutes);
+			int unavailability = this.countNbBit(this.availabilityMinute);
+			if(this.getStateFromLastBit() == 0)
+				this.availability = 0 - unavailability;
+			else this.availability = unavailability;
+			
+			if(tmpUnavailability != unavailability)
+				this.hostStatusStateFlag = 1;
+			
+			/**END Block added 2016-03-18 by Benoit Village*/
 		}
 		//If resultset has more than one record I use another method
 		else if (resultSetSize > 1)
@@ -98,6 +153,31 @@ public class HostService {
 			this.availability = this.getAvailabilityFromComplexLogs(rs);
 			/*System.out.println("I have several records for the same minute Host : " + this.hostId + ""
 					+ " service : " + this.serviceId + " minute : " +minutes); */
+			
+			/**BEGIN Block added 2016-03-18 by Benoit Village*/
+			
+			//System.out.println(Long.toBinaryString(this.availabilityMinute));
+			
+			int tmpUnavailability = this.countNbBit(this.availabilityMinute);
+			//Take into account Hoststatus state in service compute
+			this.computeAvailabilityWithHostStatus(minutes);
+			int unavailability = this.countNbBit(this.availabilityMinute);
+			if(this.getStateFromLastBit() == 0)
+				this.availability = 0 - unavailability;
+			else this.availability = unavailability;
+			
+			if(unavailability != tmpUnavailability)
+				this.hostStatusStateFlag = 1;
+			else this.hostStatusStateFlag = 0;
+			
+			/*System.out.println(Long.toBinaryString(this.availabilityMinute));
+			try {
+				Thread.sleep(5000);
+			} catch (InterruptedException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}*/
+			/**END Block added 2016-03-18 by Benoit Village*/
 		}
 		
 		try {
@@ -109,9 +189,132 @@ public class HostService {
 		}
 	}
 
+	/**
+	 * Method added 2016-03-21 by Benoit Village
+	 * 
+	 * When we compute downtime for host service
+	 * we need to apply HostStatus downtime mask
+	 * Hosststatus downtime mask is reachable
+	 * through HostService send list
+	 * @param minute
+	 */
+	private void computeDowntimeWithHostStatus(int minute) {
+		// TODO Auto-generated method stub
+		ArrayList<Integer> listSender = this.vList.getHashMapValidator().get(this.validatorId).getListSender();
+		int nbSenders = listSender.size();
+		
+		Validator hostStatusValidator;
+		int hostStatusValidatorId;
+		long hostStatusValidatorDowntimeMinute;
+
+		if(nbSenders == 1) {
+			hostStatusValidatorId = listSender.get(0);
+			hostStatusValidator = this.vList.getHashMapValidator().get(hostStatusValidatorId);
+			//On test que la minute actuelle existe dans le dico de minutes du hoststatus
+			if(hostStatusValidator.listDowntimeMinute.containsKey(minute)){
+				hostStatusValidatorDowntimeMinute = hostStatusValidator.listDowntimeMinute.get(minute);
+				this.downtimeMinute |= hostStatusValidatorDowntimeMinute;
+				if(this.hostId==5 && this.serviceId==6 && minute == 1421278200)
+					System.out.println(Long.toBinaryString(hostStatusValidatorDowntimeMinute));
+			}	
+		}
+		else if(nbSenders == 0)
+		{
+			
+		}
+		else System.out.println("Le Host Service " + this.hostId + " " + this.serviceId + 
+				" est lié à plus d'un sender " + nbSenders + " minute " + minute);
+	}
+
+	
+	/**
+	 * Method added 2016-03-18 by Benoit Village
+	 * 
+	 * When we compute availability for host service
+	 * we need to apply HostStatus availability mask
+	 * Hosststatus availability mask is reachable
+	 * through HostService send list
+	 * @param minutes 
+	 */
+	private void computeAvailabilityWithHostStatus(int minutes) {
+		// TODO Auto-generated method stub
+		ArrayList<Integer> listSender = this.vList.getHashMapValidator().get(this.validatorId).getListSender();
+		int nbSenders = listSender.size();
+		
+		Validator hostStatusValidator;
+		int hostStatusValidatorId;
+		long hostStatusValidatorAvalabilityMinute;
+
+		if(nbSenders == 1) {
+			hostStatusValidatorId = listSender.get(0);
+			hostStatusValidator = this.vList.getHashMapValidator().get(hostStatusValidatorId);
+			//On test que la minute actuelle existe dans le dico de minutes du hoststatus
+			if(hostStatusValidator.listAvailabilityMinute.containsKey(minutes)){
+				hostStatusValidatorAvalabilityMinute = hostStatusValidator.listAvailabilityMinute.get(minutes);
+				this.availabilityMinute |= hostStatusValidatorAvalabilityMinute;
+				//if(this.hostId==5 && this.serviceId==6)
+				//	System.out.println(Long.toBinaryString(hostStatusValidatorAvalabilityMinute));
+			}			
+		}
+		else if(nbSenders == 0)
+		{
+			
+		}
+		else System.out.println("Le Host Service " + this.hostId + " " + this.serviceId + 
+				" est lié à plus d'un sender " + nbSenders + " minute " + minutes);
+
+	}
+
 	private int getAvailabilityFromComplexLogs(ResultSet rs) {
 		// TODO Auto-generated method stub
 	
+		//lastBitValue contains value of the last bit computed
+		int lastBitValue;
+		int currentBitValue;
+		int bitFrom=0;
+		int bitTo=0;
+		this.availabilityMinute = 0;
+		this.availability = 0;
+		
+		//lastBitValue is initialized with last bit of previous state
+		if(!this.previousState)
+			lastBitValue=1;
+		else lastBitValue=0;
+		
+		this.setCurrentBitValueOnAvailability(lastBitValue,bitFrom);
+		
+		//We browse all event occured during minute
+		try {
+			while (rs.next()) {
+				
+				if(rs.getInt("state") == 1)
+					currentBitValue = 0;
+				else currentBitValue = 1;
+				
+				bitTo=rs.getInt("second_event");
+				this.setCurrentBitValueOnAvailability(currentBitValue,bitTo);
+				this.computeMaskBetweenLastAndCurrentBit(bitFrom,bitTo,lastBitValue);
+				
+				lastBitValue = currentBitValue;
+				bitFrom = bitTo;
+				
+			}
+			
+			this.setCurrentBitValueOnAvailability(lastBitValue,59);
+			this.computeMaskBetweenLastAndCurrentBit(bitFrom,59,lastBitValue);
+			
+			
+			this.state = this.getStateFromLastBit();
+			if(this.state == 0)
+				availability = -this.countNbBit(this.availabilityMinute);
+			else availability = this.countNbBit(this.availabilityMinute);
+			
+		} catch (SQLException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		
+		/**
 		int hostStatusStateFlagTmp = -1;
 		int[] stateTab = new int [12];
 		stateTab = this.initializeStateTab(stateTab);
@@ -128,9 +331,10 @@ public class HostService {
 			
 			while (rs.next()) {	
 				
-				/*if(rs.getInt("second_event") == 0 && rs.getInt("state") == 0) {
-					existFirstSecondOutage = true;
-				}*/
+				//if(rs.getInt("second_event") == 0 && rs.getInt("state") == 0) {
+				//	existFirstSecondOutage = true;
+				//}
+				
 				if(hostStatusStateFlagTmp != 1) {
 					if(rs.getInt("isHostStatus") == 0)
 						hostStatusStateFlagTmp = 0;
@@ -173,7 +377,7 @@ public class HostService {
 				}
 				else if(previousBit == 1) 
 					this.availabilityMinute = this.putBitAtPosition(this.availabilityMinute,60 - i);
-			}*/
+			}*\/
 			
 			//availability = this.fillstateTab(stateTab);
 			
@@ -181,10 +385,53 @@ public class HostService {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 			return availability;
-		}
+		}**/
 		return availability;
 	}
 	
+	/**
+	 * @param bitValue
+	 * @param bitPosition
+	 * This method place bitValue at bitPosition on availabilityMinute
+	 */
+	private void setCurrentBitValueOnAvailability(int bitValue, int bitPosition) {
+		// TODO Auto-generated method stub
+		int position = 59 - bitPosition;
+		Long un = (long) 1;
+		
+		if(bitValue == 1)
+		{
+			this.availabilityMinute |= un << position;
+		}
+	}
+
+	/**
+	 * 
+	 * @param bitFrom
+	 * @param bitTo
+	 * @param lastBitValue
+	 * @param currentBitValue
+	 * @return 
+	 * @return long mask with
+	 */
+	private void computeMaskBetweenLastAndCurrentBit(int bitFrom, int bitTo, int bitValue) {
+		// TODO Auto-generated method stub
+		
+		int position;
+		Long un;
+		
+		if(bitTo - bitFrom > 1 && bitValue == 1)
+		{
+			for(int i = bitFrom + 1; i < bitTo; i++)
+			{
+				un = (long) 1;
+				position = 59-i;
+				this.availabilityMinute |= un << position;
+				
+			}
+		}
+	}
+
 	private int getStateFromLastBit() {
 		// TODO Auto-generated method stub
 		int tmpState = 1;
@@ -192,6 +439,19 @@ public class HostService {
 			tmpState = 0;
 		
 		return tmpState;
+	}
+	
+	/**
+	 * 
+	 * @return 1 if first bit is 1
+	 */
+	private int getDowntimeFromLastBit() {
+		// TODO Auto-generated method stub
+		int tmpDowntime = 0;
+		if(this.getBitPosition(this.downtimeMinute,0) == 1)
+			tmpDowntime = 1;
+		
+		return tmpDowntime;
 	}
 	
 	public Long getBitPosition(Long value, int position)
@@ -301,10 +561,27 @@ public class HostService {
 		try {
 			while (rs.next()) {
 				
+				/**
+				 * Block commented 2016-03-21 by Benoit Village
+				 
 				this.hostStatusStateFlag = rs.getInt("isHostStatus");
-				
+				*/
 				//case current state ok but previous state nok
 				if(rs.getInt("state") == 1 && !this.previousState) {
+					
+					/**Block commented 2016-03-18 by Benoit Village
+					 * if(this.hostStatusStateFlag == 1){
+						availability = -60;
+						this.state = 0;
+						this.availabilityMinute = this.shareVariables.getMaskMax();
+					}
+					else {
+						availability = rs.getInt("fln_availability");
+						this.state = 1;
+						this.availabilityMinute = this.convertValueToMinuteLong(availability);
+					}*/
+					
+					/**Block added 2016-03-18 by Benoit Village*/
 					availability = rs.getInt("fln_availability");
 					this.state = 1;
 					this.availabilityMinute = this.convertValueToMinuteLong(availability);
@@ -329,6 +606,8 @@ public class HostService {
 					this.availabilityMinute = this.convertValueToMinuteLong(availability);
 
 				}
+				
+				
 			}
 		} catch (SQLException e) {
 			// TODO Auto-generated catch block
@@ -383,10 +662,14 @@ public class HostService {
 				else downtimeFlag = 0; 
 			}
 			
-			if(downtimeFlag == -1)
-				this.isDowntime = this.previousDowntime;
-			else if(downtimeFlag == 0)
+			if(downtimeFlag == -1) {
+				this.isDowntime = this.getPreviousHostServiceDowntimeBit();
+				secondeDowntime = 0;
+			}
+			else if(downtimeFlag == 0){
 				this.isDowntime = false;
+				secondeDowntime = 60 - secondeDowntime;
+			}
 			else {
 				this.isDowntime = true;
 				secondeDowntime = -60 + secondeDowntime;
@@ -395,18 +678,37 @@ public class HostService {
 			if(this.isDowntime && this.previousDowntime)
 			{
 				this.downtimeMinute = this.shareVariables.getMaskMax();
+				this.previousHostServiceDowntimeBit = (long) 1;
 			}
 			else if(this.isDowntime && !this.previousDowntime){
 				this.downtimeMinute= convertValueToMinuteLong(secondeDowntime);
+				this.previousHostServiceDowntimeBit = (long) 1;
 			}
 			else if(!this.isDowntime && this.previousDowntime)
 			{
 				this.downtimeMinute = convertValueToMinuteLong(secondeDowntime);
+				this.previousHostServiceDowntimeBit = this.getBitPosition(this.downtimeMinute,0);
 			}
-			else if(this.isDowntime && this.previousDowntime)
+			else if(!this.isDowntime && !this.previousDowntime)
 			{
 				this.downtimeMinute = 0;
+				this.previousHostServiceDowntimeBit = 0;
 			}
+			
+			//Apply hoststatus mask
+			this.computeDowntimeWithHostStatus(minute);
+			
+			//We take into account the potential new downtime value of the host service
+			if(this.getDowntimeFromLastBit() == 1)
+				this.isDowntime = true;
+			else this.isDowntime = false;
+			
+			/*if(this.hostId==5 && this.serviceId==1)
+			{
+				System.out.println("Je suis à la minute " + minute);
+				System.out.println(Long.toBinaryString(this.downtimeMinute));
+				Thread.sleep(1000);
+			}*/
 			
 			this.myConnection.closeResultSet();
 		
@@ -417,6 +719,18 @@ public class HostService {
 		
 		
 		
+	}
+
+	/**
+	 * 
+	 * @return true if last host service downtime bit = 1
+	 * else 1.
+	 */
+	private boolean getPreviousHostServiceDowntimeBit() {
+		// TODO Auto-generated method stub
+		if(this.previousHostServiceDowntimeBit == 1)
+		return true;
+		else return false;
 	}
 
 	public long convertValueToMinuteLong(int value)
@@ -463,7 +777,7 @@ public class HostService {
 		}
 		
 		
-		if(this.availability != 0 || (this.isDowntime) 
+		if(this.availability != 0 || (this.countNbBit(this.downtimeMinute) > 0) 
 			|| this.state != previousStateInt){
 			
 			/*System.out.println("Je vais insérer pour le host " + this.hostId + " l'availability "
@@ -474,6 +788,7 @@ public class HostService {
 			this.vList.getHashMapValidator().get(this.validatorId).computeDowntime();
 			this.vList.getHashMapValidator().get(this.validatorId).setDowntimeDuration(this.downtimeMinute);
 			this.vList.getHashMapValidator().get(this.validatorId).setIsDowntime(this.isDowntime);
+			this.vList.getHashMapValidator().get(this.validatorId).setPreviousHostServiceDowntimeBit (this.previousHostServiceDowntimeBit);
 			this.vList.getHashMapValidator().get(this.validatorId).setHostStatusStateFlag(this.hostStatusStateFlag);
 			this.vList.getHashMapValidator().get(this.validatorId).insertMinute(minute);
 			this.vList.getHashMapValidator().get(this.validatorId).addListAvailabilityMinute(minute,this.availabilityMinute);

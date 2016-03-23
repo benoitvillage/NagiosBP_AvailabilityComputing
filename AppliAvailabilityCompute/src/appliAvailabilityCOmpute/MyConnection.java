@@ -42,22 +42,22 @@ public class MyConnection {
 	      // this will load the MySQL driver, each DB has its own driver
 	      Class.forName("com.mysql.jdbc.Driver");
 	      // setup the connection with the DB.
-	      connect_eor_dwh = DriverManager
+	      /*connect_eor_dwh = DriverManager
 	          .getConnection("jdbc:mysql://" + this.shareVariable.getHost() + ":3306/eor_dwh?"
 	              + "user=" + this.shareVariable.getUser() + "&password=" + 
-	              this.shareVariable.getPassword());
+	              this.shareVariable.getPassword());*/
 	      
-	       /* connect_eor_dwh = DriverManager
-		           .getConnection("jdbc:mysql://192.168.26.15:3306/eor_dwh?user=eyesofreport&password=SaintThomas,2014");
-	      	*/
-	      /* connect_eor_ods = DriverManager
-		          .getConnection("jdbc:mysql://192.168.26.15:3306/eor_ods?user=eyesofreport&password=SaintThomas,2014");
-	      */
+	        connect_eor_dwh = DriverManager
+		           .getConnection("jdbc:mysql://192.168.26.131:3306/eor_dwh?user=root&password=root66");
+	      	
+	       connect_eor_ods = DriverManager
+		          .getConnection("jdbc:mysql://192.168.26.131:3306/eor_ods?user=root&password=root66");
 	      
-	      connect_eor_ods = DriverManager
+	      
+	      /*connect_eor_ods = DriverManager
 		          .getConnection("jdbc:mysql://" + this.shareVariable.getHost() + ":3306/eor_ods?"
 			              + "user=" + this.shareVariable.getUser() + "&password=" + 
-			              this.shareVariable.getPassword());
+			              this.shareVariable.getPassword());*/
 
 	      
 	    } catch (Exception e) {
@@ -179,12 +179,14 @@ public class MyConnection {
 			
 			// resultSet gets the result of the SQL query
 				this.preparedStatement = connect_eor_dwh
-					      .prepareStatement("SELECT * from d_host_service");
+					      .prepareStatement("SELECT * from d_host_service "
+					      		+ "inner join d_service on dse_id = dhs_service");
 				
 				resultSet =	preparedStatement.executeQuery();
 
 				int idHost;
 				int idService;
+				String serviceName;
 				String source;
 				int idValidator;
 				Validator hostServiceValidator;
@@ -195,10 +197,15 @@ public class MyConnection {
 					idHost = resultSet.getInt("dhs_host");
 					idService = resultSet.getInt("dhs_service");
 					source = resultSet.getString("dhs_source");
+					serviceName= resultSet.getString("dse_name");
 					idValidator = this.shareVariable.getValidatorCounter();
 					hostServiceValidator =  new Validator(idHost,idService,source, this.shareVariable, vList, this);
 					vList.addValidator(idValidator, hostServiceValidator);
-					vList.addHSValidatorKey(idValidator);
+					
+					if(serviceName.equals("Hoststatus"))
+						vList.addHoststatusValidatorKey(idValidator);
+					else
+						vList.addHSValidatorKey(idValidator);
 
 				      }
 			
@@ -288,7 +295,16 @@ public class MyConnection {
 			this.createApplicationLink(vList);
 			
 			this.createApplicationHSLinks(vList);
+			
+			this.createHoststatusHostServiceLinks(vList);
 		}
+
+		private void createHoststatusHostServiceLinks(ValidatorList vList) {
+		
+			vList.addSenderListenerHSHoststatus();
+			
+		
+	}
 
 		private void createApplicationHSLinks(ValidatorList vList) {
 		// TODO Auto-generated method stub
@@ -459,7 +475,8 @@ public class MyConnection {
 				preparedStatement = connect_eor_dwh
 					      .prepareStatement("CREATE TABLE f_tmp_unavailability_day ENGINE=MEMORY as "
 					      		   + "SELECT a.*, DSE_NAME as FDU_SERVICE_NAME "
-					      		   + "FROM (SELECT FDU_HOST, FDU_SERVICE, FDU_ISDOWNTIME, FDU_ISOUTAGE, FDU_EPOCH_MINUTE, FDU_ISHOSTSTATUSOUTAGE, fdu_OutageInternEventNum, fdu_DowntimeInternEventNum "
+					      		   + "FROM (SELECT FDU_HOST, FDU_SERVICE, FDU_ISDOWNTIME, FDU_ISOUTAGE, FDU_EPOCH_MINUTE, FDU_ISHOSTSTATUSOUTAGE, "
+					      		        + " fdu_OutageInternEventNum, fdu_DowntimeInternEventNum, fdu_lastHSDowntimeBit "
 					      		   		+  "FROM f_dtm_hs_unavailability_minute a "
 					      		   		+  "WHERE FDU_EPOCH_MINUTE = unix_timestamp(date_format(from_unixtime(? - 60),'%Y-%m-%d %H:%i:00'))) a "
 					      		   +  "INNER JOIN d_service on dse_id = a.FDU_SERVICE ");
@@ -762,16 +779,26 @@ private void createTmpLogDownHSTableIdx() {
 
 	}	
 		
-	public boolean getHSPreviousDowntime(int hostId, int serviceId) {
+		/**
+		 * 
+		 * @param hostId
+		 * @param serviceId
+		 * @return 0 if previous downtime false and previous host service downtime bit = 0
+		 * 		   1 if previous downtime true and previous host service downtime bit = 0
+		 * 		   2 if previous downtime true and previous host service downtime bit = 1
+		 */
+		public int getHSPreviousDowntime(int hostId, int serviceId) {
 		// TODO Auto-generated method stub
 		boolean previousDowntime = false;
+		int previousHSDowntimeBit = 0;
+		int previousDowntimeHostAndHostService = 0;
 		
 		try {
 		
 		// resultSet gets the result of the SQL query
 			preparedStatement = connect_eor_dwh
-				      .prepareStatement("select fdu_isDowntime from f_tmp_unavailability_day "
-											 + "where fdu_host = ? and (fdu_service = ? or fdu_service_name = 'Hoststatus') "
+				      .prepareStatement("select fdu_isDowntime, fdu_lastHSDowntimeBit from f_tmp_unavailability_day "
+											 + "where fdu_host = ? and fdu_service = ?  "
 											 + "limit 1");
 			
 
@@ -782,8 +809,16 @@ private void createTmpLogDownHSTableIdx() {
 
 			while (resultSet.next()) {
 				previousDowntime = resultSet.getBoolean("fdu_isDowntime");
-
-			      }
+				previousHSDowntimeBit = resultSet.getInt("fdu_lastHSDowntimeBit");
+				
+				if(previousDowntime && previousHSDowntimeBit == 1){
+					previousDowntimeHostAndHostService=2;
+				}
+				else if(previousDowntime && previousHSDowntimeBit == 0)
+					previousDowntimeHostAndHostService=1;
+				else if(!previousDowntime && previousHSDowntimeBit == 0)
+					previousDowntimeHostAndHostService=0;
+		      }
 			
 			this.resultSet.close();
 			this.preparedStatement.close();
@@ -791,10 +826,10 @@ private void createTmpLogDownHSTableIdx() {
 		} catch (SQLException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
-			return previousDowntime;
+			return previousDowntimeHostAndHostService;
 		}
 		
-		return previousDowntime;
+		return previousDowntimeHostAndHostService;
 	}
 	
 	public void getHSPreviousInternDowntimeEnventNum(int hostId, int serviceId) {
@@ -928,11 +963,20 @@ private void createTmpLogDownHSTableIdx() {
 		// TODO Auto-generated method stub
 		
 		try {			
+			/*
+			 * Comment 2016-03-18 by Benoit Village
 			preparedStatement = connect_eor_dwh
 				      .prepareStatement("CREATE TABLE eor_dwh.f_tmp_log_hs_day engine=MEMORY "
 				      				  + "as (SELECT * FROM f_tmp_log_day a "
 				      				      + "WHERE FLN_HOST = ? AND (FLN_SERVICE = ? OR FLN_SERVICE_NAME = 'Hoststatus'))");
-		
+			*/
+			
+			/* Added 2016-03-18 by Benoit Village*/
+			preparedStatement = connect_eor_dwh
+				      .prepareStatement("CREATE TABLE eor_dwh.f_tmp_log_hs_day engine=MEMORY "
+				      				  + "as (SELECT * FROM f_tmp_log_day a "
+				      				      + "WHERE FLN_HOST = ? AND FLN_SERVICE = ?)");
+			
 			preparedStatement.setInt(1, hostId);
 			preparedStatement.setInt(2, serviceId);
 			preparedStatement.executeUpdate();
@@ -956,11 +1000,19 @@ private void createTmpLogDownHSTableIdx() {
 	public void createTmpLogDowntimeHSTable(Integer hostId, Integer serviceId) {
 		// TODO Auto-generated method stub
 		
-		try {			
-			preparedStatement = connect_eor_dwh
+		try {	
+			/**
+			 * Comment 2016-03-18 by Benoit Village
+			 preparedStatement = connect_eor_dwh
 				      .prepareStatement("CREATE TABLE eor_dwh.f_tmp_log_down_hs_day engine=MEMORY "
 				      				  + "as (SELECT * FROM f_tmp_log_downtime_day a "
 				      				      + "WHERE FDO_HOST_ID = ? AND (FDO_SERVICE_ID = ? OR FDO_SERVICE_NAME = 'Hoststatus'))");
+			*/
+			/** Block added 2016-03-18 by Benoit Village*/
+			preparedStatement = connect_eor_dwh
+				      .prepareStatement("CREATE TABLE eor_dwh.f_tmp_log_down_hs_day engine=MEMORY "
+				      				  + "as (SELECT * FROM f_tmp_log_downtime_day a "
+				      				      + "WHERE FDO_HOST_ID = ? AND FDO_SERVICE_ID = ?)");
 		
 			preparedStatement.setInt(1, hostId);
 			preparedStatement.setInt(2, serviceId);
@@ -1058,14 +1110,14 @@ private void createTmpLogDownHSTableIdx() {
 
 	public void insertHSMinute(int minute, int hostId, int serviceId, String source, int unavailability,
 			int unavailabilityDown, int downtimeDuration, int effectiveDowntime, boolean isDowntime, int isOutage, int hostStatusStateFlag,
-			int internOutageEventId, int internDowntimeEventId) {
+			int internOutageEventId, int internDowntimeEventId, long previousHostServiceDowntimeBit) {
 		// TODO Auto-generated method stub
 		int chg_id = shareVariable.getChargementId();
 		
 		try {
 			preparedStatement = connect_eor_dwh.prepareStatement("insert into f_dtm_hs_unavailability_minute " +
-					"(fdu_epoch_minute,fdu_date, fdu_minute, fdu_source, fdu_host, fdu_service, fdu_unavailability, fdu_unavailabilityDown, fdu_downtimeDuration, fdu_downtimeEffectiveDuration, fdu_isDowntime, fdu_chg_id, fdu_isOutage, fdu_isHoststatusOutage, fdu_OutageInternEventNum, fdu_DowntimeInternEventNum) " + 
-					" values (unix_timestamp(date_format(from_unixtime(?),'%Y-%m-%d %H:%i')),date_format(from_unixtime(?),'%Y-%m-%d'),date_format(from_unixtime(?),'%H')*60 + date_format(from_unixtime(?),'%i'),?,?,?,?,?,?,?,?,?,?,?,?,?)");
+					"(fdu_epoch_minute,fdu_date, fdu_minute, fdu_source, fdu_host, fdu_service, fdu_unavailability, fdu_unavailabilityDown, fdu_downtimeDuration, fdu_downtimeEffectiveDuration, fdu_isDowntime, fdu_chg_id, fdu_isOutage, fdu_isHoststatusOutage, fdu_OutageInternEventNum, fdu_DowntimeInternEventNum, fdu_lastHSDowntimeBit) " + 
+					" values (unix_timestamp(date_format(from_unixtime(?),'%Y-%m-%d %H:%i')),date_format(from_unixtime(?),'%Y-%m-%d'),date_format(from_unixtime(?),'%H')*60 + date_format(from_unixtime(?),'%i'),?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
 			preparedStatement.setInt(1, minute);
 			preparedStatement.setInt(2, minute);
 			preparedStatement.setInt(3, minute);
@@ -1083,6 +1135,7 @@ private void createTmpLogDownHSTableIdx() {
 			preparedStatement.setInt(15, hostStatusStateFlag);
 			preparedStatement.setInt(16, internOutageEventId);
 			preparedStatement.setInt(17, internDowntimeEventId);
+			preparedStatement.setLong(18, previousHostServiceDowntimeBit);
 			preparedStatement.executeUpdate();
 		
 			this.resultSet.close();
