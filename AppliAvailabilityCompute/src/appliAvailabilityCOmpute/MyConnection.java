@@ -42,22 +42,22 @@ public class MyConnection {
 	      // this will load the MySQL driver, each DB has its own driver
 	      Class.forName("com.mysql.jdbc.Driver");
 	      // setup the connection with the DB.
-	      /*connect_eor_dwh = DriverManager
+	      connect_eor_dwh = DriverManager
 	          .getConnection("jdbc:mysql://" + this.shareVariable.getHost() + ":3306/eor_dwh?"
 	              + "user=" + this.shareVariable.getUser() + "&password=" + 
-	              this.shareVariable.getPassword());*/
+	              this.shareVariable.getPassword());
 	      
-	        connect_eor_dwh = DriverManager
-		           .getConnection("jdbc:mysql://192.168.26.131:3306/eor_dwh?user=root&password=root66");
+	        /*connect_eor_dwh = DriverManager
+		           .getConnection("jdbc:mysql://192.168.26.131:3306/eor_dwh?user=root&password=ro");*/
 	      	
-	       connect_eor_ods = DriverManager
-		          .getConnection("jdbc:mysql://192.168.26.131:3306/eor_ods?user=root&password=root66");
+	       /*connect_eor_ods = DriverManager
+		          .getConnection("jdbc:mysql://192.168.26.131:3306/eor_ods?user=root&password=ro");*/
 	      
 	      
-	      /*connect_eor_ods = DriverManager
+	      connect_eor_ods = DriverManager
 		          .getConnection("jdbc:mysql://" + this.shareVariable.getHost() + ":3306/eor_ods?"
 			              + "user=" + this.shareVariable.getUser() + "&password=" + 
-			              this.shareVariable.getPassword());*/
+			              this.shareVariable.getPassword());
 
 	      
 	    } catch (Exception e) {
@@ -476,7 +476,7 @@ public class MyConnection {
 					      .prepareStatement("CREATE TABLE f_tmp_unavailability_day ENGINE=MEMORY as "
 					      		   + "SELECT a.*, DSE_NAME as FDU_SERVICE_NAME "
 					      		   + "FROM (SELECT FDU_HOST, FDU_SERVICE, FDU_ISDOWNTIME, FDU_ISOUTAGE, FDU_EPOCH_MINUTE, FDU_ISHOSTSTATUSOUTAGE, "
-					      		        + " fdu_OutageInternEventNum, fdu_DowntimeInternEventNum, fdu_lastHSDowntimeBit "
+					      		        + " fdu_OutageInternEventNum, fdu_DowntimeInternEventNum, fdu_lastHSDowntimeBit, fdu_lastHSOutageBit "
 					      		   		+  "FROM f_dtm_hs_unavailability_minute a "
 					      		   		+  "WHERE FDU_EPOCH_MINUTE = unix_timestamp(date_format(from_unixtime(? - 60),'%Y-%m-%d %H:%i:00'))) a "
 					      		   +  "INNER JOIN d_service on dse_id = a.FDU_SERVICE ");
@@ -690,7 +690,7 @@ private void createTmpLogDownHSTableIdx() {
 		
 		// resultSet gets the result of the SQL query
 			preparedStatement = connect_eor_dwh
-				      .prepareStatement("select fdu_isOutage, fdu_isHoststatusOutage from f_tmp_unavailability_day "
+				      .prepareStatement("select fdu_isOutage, fdu_lastHSDowntimeBit from f_tmp_unavailability_day "
 											 + "where fdu_host = ? and (fdu_service = ? or fdu_service_name = 'Hoststatus') ");
 			
 			preparedStatement.setInt(1, hostId);
@@ -703,9 +703,9 @@ private void createTmpLogDownHSTableIdx() {
 				if(resultSet.getInt("fdu_isOutage") == 0 ) 
 				  previousState = 0;
 				else if (resultSet.getInt("fdu_isOutage") == 1) {
-						if(resultSet.getInt("fdu_isHoststatusOutage") == 0)
+						if(resultSet.getInt("fdu_lastHSDowntimeBit") == 1)
 							previousState = 1;
-						else if (resultSet.getInt("fdu_isHoststatusOutage") == 1)
+						else if (resultSet.getInt("fdu_lastHSDowntimeBit") == 0)
 							previousState = 2;
 				}
 	
@@ -1110,7 +1110,7 @@ private void createTmpLogDownHSTableIdx() {
 
 	public void insertHSMinute(int minute, int hostId, int serviceId, String source, int unavailability,
 			int unavailabilityDown, int downtimeDuration, int effectiveDowntime, boolean isDowntime, int isOutage, int hostStatusStateFlag,
-			int internOutageEventId, int internDowntimeEventId, long previousHostServiceDowntimeBit) {
+			int internOutageEventId, int internDowntimeEventId, long previousHostServiceDowntimeBit, long previousHostServiceOutageBit) {
 		// TODO Auto-generated method stub
 		int chg_id = shareVariable.getChargementId();
 		

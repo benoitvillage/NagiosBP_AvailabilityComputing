@@ -36,11 +36,18 @@ public class HostService {
 	private int previousHostStatusStateFlag;
 	
 	/**
+	 * Attribute added 2016-25-03 by benoit village
 	 * This attribute contains host service last minutes downtime bit
 	 * before hoststatus downtime minute application. This attribute
 	 * allows to stop downtime when inherited from hoststatus.
 	 */
 	private long previousHostServiceDowntimeBit;
+	/**
+	 * This attribute contains host service last minutes outage bit
+	 * before hoststatus availability minute application. This attribute
+	 * allows to stop outage when inherited from hoststatus.
+	 */
+	private long previousHostServiceOutageBit;
 	
 	public HostService(MyConnection myConnection, ShareVariables shareVariables, ValidatorList vList) {
 		this.myConnection = myConnection;
@@ -50,7 +57,7 @@ public class HostService {
 
 	public void hostServiceInit(int validatorId, String hostServiceSource, int hostId, int serviceId, boolean isDowntime,
 			boolean previousState, boolean previousDowntime, int availability, int state, int hostStatusStateFlag,
-			int previousHostStatusStateFlag, int previousHostServiceDowntimeBit) {
+			int previousHostStatusStateFlag, int previousHostServiceDowntimeBit, long previousHostServiceOutageBit) {
 		// TODO Auto-generated method stub
 		
 		this.source = hostServiceSource;
@@ -65,6 +72,8 @@ public class HostService {
 		this.hostStatusStateFlag = hostStatusStateFlag;
 		this.previousHostStatusStateFlag = previousHostStatusStateFlag;
 		this.previousHostServiceDowntimeBit = previousHostServiceDowntimeBit;
+		/**Code added 2016-25-03 by Benoit Village*/
+		this.previousHostServiceOutageBit = previousHostServiceOutageBit;
 	}
 
 	public void computeAvailabilityMinute(int minutes) {
@@ -75,31 +84,45 @@ public class HostService {
 		int resultSetSize = this.isResultSetSize(rs);
 		
 		//Warning
-		if(minutes == 1421276460 && this.hostId == 5 && this.serviceId == 6){
-			System.out.println("Voici le nombre d'event sur la minute 1421276460 pour hostservice 5 6 : " + resultSetSize);
+		//if(minutes == 1421276460 && this.hostId == 5 && this.serviceId == 6){
+		//	System.out.println("Voici le nombre d'event sur la minute 1421276460 pour hostservice 5 6 : " + resultSetSize);
 			/*try {
 				Thread.sleep(5000);
 			} catch (InterruptedException e) {
 				// TODO Auto-generated catch block
 				e.printStackTrace();
 			}*/
-		}
+		//}
 		
 		
 		if(resultSetSize == 0)	
 		{
 			this.availabilityMinute = 0;
 			
-			if(!previousState) {
+			/** Block commented 20160325 by Benoit Village
+			if(!previousState && this.previousHostServiceOutageBit==1) {
 				this.availability = -60;
 				this.state = 0;
 				this.availabilityMinute = this.shareVariables.getMaskMax();
 			}
+			*/
+			
+			/** Begin Block added 2016-03-25 by Benoit Village*/
+			if(!previousState && this.previousHostServiceOutageBit==1) {
+				this.availability = -60;
+				this.state = 0;
+				this.availabilityMinute = this.shareVariables.getMaskMax();
+			}
+			/** End Block added 2016-03-25 by Benoit Village*/
 			else {
 				this.availability = 0;
 				this.state = 1;
 				this.availabilityMinute = (long) 0;
 			}
+			
+			/**Begin Block added 2016-03-25 by Benoit Village*/
+			this.previousHostServiceOutageBit = this.getBitPosition(availabilityMinute, 0);
+			/**End Block added 2016-03-25 by Benoit Village*/
 			
 			this.hostStatusStateFlag = this.previousHostStatusStateFlag;
 			
@@ -214,8 +237,8 @@ public class HostService {
 			if(hostStatusValidator.listDowntimeMinute.containsKey(minute)){
 				hostStatusValidatorDowntimeMinute = hostStatusValidator.listDowntimeMinute.get(minute);
 				this.downtimeMinute |= hostStatusValidatorDowntimeMinute;
-				if(this.hostId==5 && this.serviceId==6 && minute == 1421278200)
-					System.out.println(Long.toBinaryString(hostStatusValidatorDowntimeMinute));
+				//if(this.hostId==5 && this.serviceId==6 && minute == 1421278200)
+				//	System.out.println(Long.toBinaryString(hostStatusValidatorDowntimeMinute));
 			}	
 		}
 		else if(nbSenders == 0)
@@ -308,6 +331,9 @@ public class HostService {
 			if(this.state == 0)
 				availability = -this.countNbBit(this.availabilityMinute);
 			else availability = this.countNbBit(this.availabilityMinute);
+			
+			/**Line added 2016-03-25 by Benoit Village*/
+			this.previousHostServiceOutageBit = this.getBitPosition(availabilityMinute, 0);	
 			
 		} catch (SQLException e) {
 			// TODO Auto-generated catch block
@@ -607,7 +633,8 @@ public class HostService {
 
 				}
 				
-				
+				/**Block added 2016-03-25 by Benoit Village*/
+				this.previousHostServiceOutageBit = this.getBitPosition(availabilityMinute, 0);				
 			}
 		} catch (SQLException e) {
 			// TODO Auto-generated catch block
@@ -788,6 +815,7 @@ public class HostService {
 			this.vList.getHashMapValidator().get(this.validatorId).computeDowntime();
 			this.vList.getHashMapValidator().get(this.validatorId).setDowntimeDuration(this.downtimeMinute);
 			this.vList.getHashMapValidator().get(this.validatorId).setIsDowntime(this.isDowntime);
+			this.vList.getHashMapValidator().get(this.validatorId).setPreviousHostServiceOutageBit (this.previousHostServiceOutageBit);
 			this.vList.getHashMapValidator().get(this.validatorId).setPreviousHostServiceDowntimeBit (this.previousHostServiceDowntimeBit);
 			this.vList.getHashMapValidator().get(this.validatorId).setHostStatusStateFlag(this.hostStatusStateFlag);
 			this.vList.getHashMapValidator().get(this.validatorId).insertMinute(minute);
@@ -852,7 +880,7 @@ public class HostService {
 					this.getHostServiceDowntimeState(i);
 					//System.out.println(Long.toBinaryString(this.availabilityMinute));
 				}
-				else this.computeFromPreviousValue();
+				else this.computeFromPreviousValue(i);
 				//System.out.println(Long.toBinaryString(this.availabilityMinute));
 				
 				this.insertHostServiceAvailability(i);
@@ -864,7 +892,7 @@ public class HostService {
 				if(existDateMinute(i)) {
 					this.getHostServiceDowntimeState(i);
 				}
-				else this.computeFromPreviousValue();
+				else this.computeFromPreviousValue(i);
 				
 				this.insertHostServiceAvailability(i);
 				this.saveCurrentContext();
@@ -874,7 +902,7 @@ public class HostService {
 				if(existDateMinute(i)) {
 					this.computeAvailabilityMinute(i);
 				}
-				else this.computeFromPreviousValue();
+				else this.computeFromPreviousValue(i);
 				
 				this.insertHostServiceAvailability(i);
 				this.saveCurrentContext();
@@ -883,7 +911,7 @@ public class HostService {
 		}
 	}
 
-	private void computeFromPreviousValue() {
+	private void computeFromPreviousValue(int minutes) {
 		// TODO Auto-generated method stub
 		if(!this.previousState){
 			this.state = 0;
@@ -904,6 +932,34 @@ public class HostService {
 			this.isDowntime = false;
 			this.downtimeMinute = 0;
 		}
+		
+		/**BEGIN Block added 2016-03-29 by Benoit Village*/
+		
+		int tmpUnavailability = this.countNbBit(this.availabilityMinute);
+		//Take into account Hoststatus state in service compute
+		this.computeAvailabilityWithHostStatus(minutes);
+		int unavailability = this.countNbBit(this.availabilityMinute);
+		if(this.getStateFromLastBit() == 0){
+			this.availability = 0 - unavailability;
+			this.state = 0;
+		}
+		else {
+			this.availability = unavailability;
+			this.state = 1;
+		}
+		
+		if(tmpUnavailability != unavailability)
+			this.hostStatusStateFlag = 1;
+		
+		//Apply hoststatus mask
+		this.computeDowntimeWithHostStatus(minutes);
+		
+		//We take into account the potential new downtime value of the host service
+		if(this.getDowntimeFromLastBit() == 1)
+			this.isDowntime = true;
+		else this.isDowntime = false;
+		
+		/**END Block added 2016-03-29 by Benoit Village*/
 	}
 
 }

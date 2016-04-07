@@ -80,6 +80,13 @@ public class Validator {
 	 * allows to stop downtime when inherited from hoststatus.
 	 */
 	private long previousHostServiceDowntimeBit;
+
+	/**
+	 * This attribute contains host service last minutes outage bit
+	 * before hoststatus availability minute application. This attribute
+	 * allows to stop outage when inherited from hoststatus.
+	 */
+	private long previousHostServiceOutageBit;
 	
 	
 	
@@ -168,6 +175,7 @@ public class Validator {
 	
 	public void compute() {
 
+		
 		this.computeAreEventOnPeriod();
 		if(this.areEventsOnPeriod)
 		{
@@ -175,6 +183,12 @@ public class Validator {
 			{	
 				this.availabilityDownMinute = 0;
 				this.availabilityMinute = 0;
+				
+				//warning
+				if(this.idApplication==346 && i == 1456740240)
+				{
+					System.out.println("Test Eordering ISA minute 1456740240");
+				}
 				
 				this.computeMinute(i);
 				this.insertMinute(i);
@@ -218,7 +232,7 @@ public class Validator {
 		int internDowntimeEventId = this.shareVariables.getInternDowntimeEventId();
 		
 		if(this.idApplication == -1)
-			this.myConnection.insertHSMinute(minute, this.idHost, this.idService, this.source, this.unavailability, this.unavailabilityDown, this.downtimeDuration,this.effectiveDowntimeDuration, this.isDowntime, isOutage, this.hostStatusStateFlag, internOutageEventId, internDowntimeEventId, this.previousHostServiceDowntimeBit);
+			this.myConnection.insertHSMinute(minute, this.idHost, this.idService, this.source, this.unavailability, this.unavailabilityDown, this.downtimeDuration,this.effectiveDowntimeDuration, this.isDowntime, isOutage, this.hostStatusStateFlag, internOutageEventId, internDowntimeEventId, this.previousHostServiceDowntimeBit, this.previousHostServiceOutageBit);
 		
 		if(this.idApplication != -1 && (this.downtimeDuration > 0 || this.unavailability != 0) ) {
 			this.myConnection.insertAppliMinute(minute, this.idApplication, this.category, "Global", this.source, this.unavailability, this.unavailabilityDown, this.effectiveDowntimeDuration, isOutage);
@@ -556,6 +570,11 @@ public class Validator {
 	public void setPreviousHostServiceDowntimeBit(long previousHostServiceDowntimeBit) {
 		// TODO Auto-generated method stub
 		this.previousHostServiceDowntimeBit = previousHostServiceDowntimeBit;
+	}
+
+	public void setPreviousHostServiceOutageBit(Long previousHostServiceOutageBit) {
+		// TODO Auto-generated method stub
+		this.previousHostServiceOutageBit = previousHostServiceOutageBit;
 	}
 
 	
