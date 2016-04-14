@@ -22,7 +22,7 @@ public class HostService {
 	private MyConnection myConnection;
 	private boolean isDowntime;
 	private ArrayList<Integer> listDateMinute;
-	private long downtimeMinute;
+	private long downtimeMinute = (long) 0;
 	private long availabilityMinute;
 	private ShareVariables shareVariables;
 	private ValidatorList vList;
@@ -74,6 +74,7 @@ public class HostService {
 		this.previousHostServiceDowntimeBit = previousHostServiceDowntimeBit;
 		/**Code added 2016-25-03 by Benoit Village*/
 		this.previousHostServiceOutageBit = previousHostServiceOutageBit;
+
 	}
 
 	public void computeAvailabilityMinute(int minutes) {
@@ -202,6 +203,7 @@ public class HostService {
 			}*/
 			/**END Block added 2016-03-18 by Benoit Village*/
 		}
+		
 		
 		try {
 			this.myConnection.closeResultSet();
@@ -722,6 +724,20 @@ public class HostService {
 				this.previousHostServiceDowntimeBit = 0;
 			}
 			
+			/*if(this.hostId==21 && this.serviceId==46 && minute == 1456959600)
+			{
+				System.out.println("Downtime minute avant filtre hoststatus : " + Long.toBinaryString(this.downtimeMinute));
+				System.out.print("Downtimeflag : " + downtimeFlag);
+				System.out.print("IsDowntime : " + this.isDowntime);
+				System.out.print("Previous downtime : " + this.previousDowntime);
+				try {
+					Thread.sleep(1000);
+				} catch (InterruptedException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+			}*/
+			
 			//Apply hoststatus mask
 			this.computeDowntimeWithHostStatus(minute);
 			
@@ -730,11 +746,15 @@ public class HostService {
 				this.isDowntime = true;
 			else this.isDowntime = false;
 			
-			/*if(this.hostId==5 && this.serviceId==1)
+			/*if(this.hostId==21 && this.serviceId==46 && minute == 1456959600)
 			{
-				System.out.println("Je suis à la minute " + minute);
-				System.out.println(Long.toBinaryString(this.downtimeMinute));
-				Thread.sleep(1000);
+				System.out.println("Downtime minute avant filtre hoststatus : " + Long.toBinaryString(this.downtimeMinute));
+				try {
+					Thread.sleep(1000);
+				} catch (InterruptedException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
 			}*/
 			
 			this.myConnection.closeResultSet();
@@ -871,6 +891,7 @@ public class HostService {
 			System.out.print("");*/
 		
 		
+		
 		for(int i = shareVariables.getEpochBegin(); i <= shareVariables.getEpochEnd(); i += 60){
 			
 			if(computeCase == 1){
@@ -898,11 +919,13 @@ public class HostService {
 				this.saveCurrentContext();
 			}
 			else if(computeCase == 3) {
-				
+								
 				if(existDateMinute(i)) {
 					this.computeAvailabilityMinute(i);
 				}
 				else this.computeFromPreviousValue(i);
+				
+
 				
 				this.insertHostServiceAvailability(i);
 				this.saveCurrentContext();

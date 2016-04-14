@@ -953,7 +953,7 @@ private void createTmpLogDownHSTableIdx() {
 		} catch (SQLException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
-			return true;
+			return isNotEmpty;
 		}
 		
 		return isNotEmpty;
