@@ -133,6 +133,7 @@ public class HostService {
 			//Take into account Hoststatus state in service compute
 			this.computeAvailabilityWithHostStatus(minutes);
 			int unavailability = this.countNbBit(this.availabilityMinute);
+			
 			if(this.getStateFromLastBit() == 0){
 				this.availability = 0 - unavailability;
 				this.state = 0;
@@ -923,7 +924,9 @@ public class HostService {
 				if(existDateMinute(i)) {
 					this.computeAvailabilityMinute(i);
 				}
-				else this.computeFromPreviousValue(i);
+				else {
+						this.computeFromPreviousValue(i);
+					}
 				
 
 				

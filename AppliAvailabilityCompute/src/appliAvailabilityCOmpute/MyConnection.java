@@ -871,7 +871,7 @@ private void createTmpLogDownHSTableIdx() {
 	}
 	
 	
-	public boolean testHSOutage(Integer hostId, Integer serviceId, HostService hs) {
+	public boolean testHSOutage(Integer hostId, Integer serviceId, HostService hs, boolean previousState) {
 		// TODO Auto-generated method stub
 		
 		boolean isNotEmpty = false;
@@ -895,7 +895,7 @@ private void createTmpLogDownHSTableIdx() {
 			this.resultSet.close();
 			this.preparedStatement.close();
 			
-			if(isNotEmpty) {
+			if(isNotEmpty || !previousState) {
 				
 				preparedStatement = connect_eor_dwh
 					      .prepareStatement("SELECT distinct FLN_DATE_MINUTE FROM f_tmp_log_day a "
@@ -1116,8 +1116,8 @@ private void createTmpLogDownHSTableIdx() {
 		
 		try {
 			preparedStatement = connect_eor_dwh.prepareStatement("insert into f_dtm_hs_unavailability_minute " +
-					"(fdu_epoch_minute,fdu_date, fdu_minute, fdu_source, fdu_host, fdu_service, fdu_unavailability, fdu_unavailabilityDown, fdu_downtimeDuration, fdu_downtimeEffectiveDuration, fdu_isDowntime, fdu_chg_id, fdu_isOutage, fdu_isHoststatusOutage, fdu_OutageInternEventNum, fdu_DowntimeInternEventNum, fdu_lastHSDowntimeBit) " + 
-					" values (unix_timestamp(date_format(from_unixtime(?),'%Y-%m-%d %H:%i')),date_format(from_unixtime(?),'%Y-%m-%d'),date_format(from_unixtime(?),'%H')*60 + date_format(from_unixtime(?),'%i'),?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
+					"(fdu_epoch_minute,fdu_date, fdu_minute, fdu_source, fdu_host, fdu_service, fdu_unavailability, fdu_unavailabilityDown, fdu_downtimeDuration, fdu_downtimeEffectiveDuration, fdu_isDowntime, fdu_chg_id, fdu_isOutage, fdu_isHoststatusOutage, fdu_OutageInternEventNum, fdu_DowntimeInternEventNum, fdu_lastHSDowntimeBit, fdu_lastHSOutageBit) " + 
+					" values (unix_timestamp(date_format(from_unixtime(?),'%Y-%m-%d %H:%i')),date_format(from_unixtime(?),'%Y-%m-%d'),date_format(from_unixtime(?),'%H')*60 + date_format(from_unixtime(?),'%i'),?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
 			preparedStatement.setInt(1, minute);
 			preparedStatement.setInt(2, minute);
 			preparedStatement.setInt(3, minute);
@@ -1136,6 +1136,7 @@ private void createTmpLogDownHSTableIdx() {
 			preparedStatement.setInt(16, internOutageEventId);
 			preparedStatement.setInt(17, internDowntimeEventId);
 			preparedStatement.setLong(18, previousHostServiceDowntimeBit);
+			preparedStatement.setLong(19, previousHostServiceOutageBit);
 			preparedStatement.executeUpdate();
 		
 			this.resultSet.close();

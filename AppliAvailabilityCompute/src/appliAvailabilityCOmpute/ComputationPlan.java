@@ -199,7 +199,7 @@ public class ComputationPlan {
 				state = 1;
 				
 				hs.initializeDateMinuteStateArray();
-				executeHSStateLookup = this.myConnection.testHSOutage(hostId,serviceId,hs);
+				executeHSStateLookup = this.myConnection.testHSOutage(hostId,serviceId,hs,previousState);
 				executeHSDowntimeLookup = this.myConnection.testHSDowntime(hostId,serviceId,hs);
 				
 				//warning
